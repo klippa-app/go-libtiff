@@ -1,0 +1,19 @@
+package tiffcp
+
+import (
+	"context"
+	_ "embed"
+
+	"github.com/klippa-app/go-libtiff/internal/registry"
+)
+
+//go:embed tiffcp.wasm
+var wasmBinary []byte
+
+func init() {
+	registry.Register("tiffcp", wasmBinary)
+}
+
+func Run(ctx context.Context, args []string) error {
+	return registry.Run(ctx, "tiffcp", args...)
+}

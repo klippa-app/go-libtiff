@@ -1,0 +1,9 @@
+/vendor
+/build/*
+!/build/emscripten.patch
+!/build/build.sh
+!/build/extra.c
+.wazero-cache
+.idea
+.DS_Store
+/samples

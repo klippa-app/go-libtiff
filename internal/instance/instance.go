@@ -1,0 +1,142 @@
+package instance
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
+	"github.com/tetratelabs/wazero/experimental"
+	"github.com/tetratelabs/wazero/experimental/logging"
+	"github.com/tetratelabs/wazero/imports/emscripten"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+)
+
+type Config struct {
+	CompilationCacheDir *string
+	WASMData            []byte
+	IsProgramRun        bool
+	FSConfig            wazero.FSConfig
+	Debug               bool
+}
+
+type Instance struct {
+	runtime        wazero.Runtime
+	Module         api.Module
+	config         wazero.ModuleConfig
+	compiledModule wazero.CompiledModule
+}
+
+func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
+	if config == nil {
+		return nil, errors.New("config must be given")
+	}
+	if config.Debug {
+		ctx = experimental.WithFunctionListenerFactory(ctx, logging.NewHostLoggingListenerFactory(os.Stdout, logging.LogScopeFilesystem))
+	}
+	runtimeConfig := wazero.NewRuntimeConfig()
+	if config.CompilationCacheDir != nil {
+		cache, err := wazero.NewCompilationCacheWithDir(*config.CompilationCacheDir)
+		if err != nil {
+			return nil, err
+		}
+		runtimeConfig = runtimeConfig.WithCompilationCache(cache)
+	}
+
+	wazeroRuntime := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
+	if _, err := wasi_snapshot_preview1.Instantiate(ctx, wazeroRuntime); err != nil {
+		return nil, fmt.Errorf("could not instantiate wasi_snapshot_preview1: %w", err)
+	}
+
+	compiledModule, err := wazeroRuntime.CompileModule(ctx, config.WASMData)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := emscripten.InstantiateForModule(ctx, wazeroRuntime, compiledModule); err != nil {
+		return nil, err
+	}
+
+	fsConfig := config.FSConfig
+	if fsConfig == nil {
+		fsConfig = wazero.NewFSConfig()
+
+		// On Windows we mount the volume of the current working directory as
+		// root. On Linux we mount / as root.
+		if runtime.GOOS == "windows" {
+			cwdDir, err := os.Getwd()
+			if err != nil {
+				return nil, err
+			}
+
+			volumeName := filepath.VolumeName(cwdDir)
+			if volumeName != "" {
+				fsConfig = fsConfig.WithDirMount(fmt.Sprintf("%s\\", volumeName), "/")
+			}
+		} else {
+			fsConfig = fsConfig.WithDirMount("./samples", "/samples")
+		}
+	}
+
+	moduleConfig := wazero.NewModuleConfig().
+		WithStdout(os.Stdout).
+		WithStderr(os.Stderr).
+		WithRandSource(rand.Reader).
+		WithFSConfig(fsConfig).
+		WithName("")
+
+	if config.IsProgramRun {
+		return &Instance{
+			runtime:        wazeroRuntime,
+			config:         moduleConfig,
+			compiledModule: compiledModule,
+		}, nil
+	}
+
+	moduleConfig = moduleConfig.WithStartFunctions("_initialize")
+	mod, err := wazeroRuntime.InstantiateModule(ctx, compiledModule, moduleConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Instance{
+		runtime:        wazeroRuntime,
+		Module:         mod,
+		compiledModule: compiledModule,
+	}, nil
+}
+
+func (i *Instance) RunProgram(ctx context.Context, args ...string) error {
+	i.config = i.config.WithStartFunctions("_start")
+	i.config = i.config.WithArgs(args...)
+	mod, err := i.runtime.InstantiateModule(ctx, i.compiledModule, i.config)
+	i.Module = mod
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (i *Instance) Close(ctx context.Context) error {
+	if i.Module != nil {
+		if err := i.Module.Close(ctx); err != nil {
+			return fmt.Errorf("could not close module: %w", err)
+		}
+	}
+	if i.runtime != nil {
+		if err := i.runtime.Close(ctx); err != nil {
+			return fmt.Errorf("could not close runtime: %w", err)
+		}
+	}
+	if i.compiledModule != nil {
+		if err := i.compiledModule.Close(ctx); err != nil {
+			return fmt.Errorf("could not close compiled module: %w", err)
+		}
+	}
+	return nil
+}
