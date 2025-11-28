@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"errors"
 
-	"github.com/klippa-app/go-libtiff/config"
 	"github.com/klippa-app/go-libtiff/internal/instance"
 )
 
@@ -16,7 +15,7 @@ type Instance struct {
 	internalInstance *instance.Instance
 }
 
-func GetInstance(ctx context.Context, config *config.Config) (*Instance, error) {
+func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 	if config == nil {
 		return nil, errors.New("config must be given")
 	}

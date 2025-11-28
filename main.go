@@ -3,14 +3,20 @@ package main
 import (
 	"context"
 	_ "embed"
+	"errors"
+	"fmt"
+	"image/jpeg"
+	"image/png"
 	"log"
 	"os"
+	"path"
 	"slices"
 	"strings"
 
 	_ "github.com/klippa-app/go-libtiff/fax2ps"
 	_ "github.com/klippa-app/go-libtiff/fax2tiff"
 	"github.com/klippa-app/go-libtiff/internal/registry"
+	"github.com/klippa-app/go-libtiff/libtiff"
 	_ "github.com/klippa-app/go-libtiff/mkg3states"
 	_ "github.com/klippa-app/go-libtiff/pal2rgb"
 	_ "github.com/klippa-app/go-libtiff/ppm2tiff"
@@ -30,12 +36,21 @@ import (
 	_ "github.com/klippa-app/go-libtiff/tiffmedian"
 	_ "github.com/klippa-app/go-libtiff/tiffset"
 	_ "github.com/klippa-app/go-libtiff/tiffsplit"
+	"github.com/spf13/cobra"
+	"github.com/tetratelabs/wazero"
 )
+
+var compilationCache wazero.CompilationCache
+
+func init() {
+	compilationCache = wazero.NewCompilationCache()
+}
 
 func main() {
 	ctx := context.Background()
 
 	availableBinaries := registry.List()
+	availableBinaries = append(availableBinaries, "tiff2img")
 	incorrectStartArgument := func() {
 		log.Fatalf("You should minimally start the program with one of the following arguments: %s", strings.Join(availableBinaries, ", "))
 	}
@@ -46,8 +61,108 @@ func main() {
 		incorrectStartArgument()
 	}
 
+	if os.Args[1] == "tiff2img" {
+		err := tiff2img()
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	err := registry.Run(ctx, os.Args[1], os.Args[1:]...)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func tiff2img() error {
+	var (
+		// Used for flags.
+		fileType string
+		quality  int
+	)
+
+	rootCmd := &cobra.Command{
+		Use:   "tiff2img [input] [output]",
+		Short: "A CLI tool to convert tiff to images, if the file has multiple images, the output path has to contain %d",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return cobra.ExactArgs(3)(cmd, args)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx := context.Background()
+			input := args[1]
+			if !path.IsAbs(input) {
+				log.Fatal(errors.New("input path must be absolute"))
+			}
+
+			output := args[2]
+			instance, err := libtiff.GetInstance(ctx, &libtiff.Config{
+				CompilationCache: compilationCache,
+			})
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer instance.Close(ctx)
+			file, err := instance.TIFFOpenFile(ctx, input)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer file.Close(ctx)
+
+			imageCount, err := file.TIFFNumberOfDirectories(ctx)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if imageCount == 0 {
+				log.Fatal(errors.New("tiff has no images"))
+			}
+
+			if imageCount > 1 && !strings.Contains(output, "%d") {
+				log.Fatal(errors.New("tiff has multiple images and output path does not contain %d"))
+			}
+
+			for i := range file.Directories(ctx) {
+				func() {
+					image, cleanup, err := file.ToImage(ctx)
+					if err != nil {
+						log.Fatal(fmt.Errorf("could not convert tiff image %d to go image: %w", i, err))
+					}
+					defer cleanup(ctx)
+
+					outputPath := output
+					outputPath = strings.Replace(outputPath, "%d", fmt.Sprintf("%d", i), 1)
+					outFile, err := os.Create(outputPath)
+					if err != nil {
+						log.Fatal(fmt.Errorf("could not create output path %s for tiff image %d: %w", outputPath, i, err))
+					}
+
+					defer outFile.Close()
+					if fileType == "jpeg" {
+						err := jpeg.Encode(outFile, image, &jpeg.Options{
+							Quality: quality,
+						})
+						if err != nil {
+							log.Fatal(fmt.Errorf("could not create output jpeg %s for tiff image %d: %w", outputPath, i, err))
+						}
+					} else if fileType == "png" {
+						err := png.Encode(outFile, image)
+						if err != nil {
+							log.Fatal(fmt.Errorf("could not create output png %s for tiff image %d: %w", outputPath, i, err))
+						}
+					} else {
+						log.Fatal(fmt.Errorf("invalid output filetype: %s", fileType))
+					}
+
+					log.Printf("Created file %s for TIFF image %d", outputPath, i)
+				}()
+			}
+		},
+	}
+
+	rootCmd.Flags().IntVarP(&quality, "quality", "", 95, "The quality to render the image in, only used for jpeg.")
+	rootCmd.Flags().StringVarP(&fileType, "file-type", "", "jpeg", "The file type to render in, jpeg or png")
+
+	rootCmd.SetOut(os.Stdout)
+	return rootCmd.Execute()
 }

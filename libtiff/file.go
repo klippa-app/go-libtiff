@@ -3,6 +3,7 @@ package libtiff
 import (
 	"context"
 	"errors"
+	"iter"
 
 	"github.com/tetratelabs/wazero/api"
 )
@@ -17,23 +18,31 @@ func (f *File) Close(ctx context.Context) error {
 	return f.closeFunc(ctx)
 }
 
-func (f *File) Iter(ctx context.Context, cb func(int)) (int, error) {
-	n := 0
-	for {
-		cb(n)
-		n++
+func (f *File) Directories(ctx context.Context) iter.Seq2[int, error] {
+	return func(yield func(int, error) bool) {
+		n := 0
+		for {
+			yieldRes := yield(n, nil)
+			if !yieldRes {
+				break
+			}
 
-		res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.Pointer)
-		if err != nil {
-			return n, err
-		}
+			n++
 
-		// No more images in the file.
-		if res[0] == 0 {
-			break
+			res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.Pointer)
+			if err != nil {
+				yieldRes = yield(n, err)
+				if !yieldRes {
+					break
+				}
+			}
+
+			// No more images in the file.
+			if res[0] == 0 {
+				break
+			}
 		}
 	}
-	return n, nil
 }
 
 // TIFFCurrentDirectory returns the index of the current directory.
@@ -48,7 +57,7 @@ func (f *File) TIFFCurrentDirectory(ctx context.Context) (uint32, error) {
 
 // TIFFLastDirectory returns whether the current directory is the last directory.
 func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFLastDirectory").Call(ctx)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFLastDirectory").Call(ctx, f.Pointer)
 	if err != nil {
 		return false, err
 	}
@@ -64,7 +73,7 @@ func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
 
 // TIFFReadDirectory will read the next directory.
 func (f *File) TIFFReadDirectory(ctx context.Context) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.Pointer)
 	if err != nil {
 		return err
 	}
@@ -78,7 +87,7 @@ func (f *File) TIFFReadDirectory(ctx context.Context) error {
 
 // TIFFSetDirectory will set and read the given directory.
 func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFSetDirectory").Call(ctx, api.EncodeU32(n))
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFSetDirectory").Call(ctx, f.Pointer, api.EncodeU32(n))
 	if err != nil {
 		return err
 	}
@@ -87,6 +96,16 @@ func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
 		return errors.New("could not set directory")
 	}
 	return nil
+}
+
+// TIFFNumberOfDirectories will return the amount of directories.
+func (f *File) TIFFNumberOfDirectories(ctx context.Context) (uint32, error) {
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFNumberOfDirectories").Call(ctx, f.Pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return api.DecodeU32(res[0]), nil
 }
 
 func (i *Instance) TIFFOpenFile(ctx context.Context, filePath string) (*File, error) {

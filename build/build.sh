@@ -23,9 +23,7 @@ rm tiff-${LIBTIFF_PKGVER}.tar.gz
 cd tiff-${LIBTIFF_PKGVER}
 emcmake cmake \
   -DCMAKE_EXE_LINKER_FLAGS="-sERROR_ON_UNDEFINED_SYMBOLS=0 -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sSTANDALONE_WASM=1" \
-  -DCMAKE_CXX_FLAGS="-O2" \
-  -Dlibdeflate=ON -DDeflate_INCLUDE_DIR=/build/libdeflate -DDeflate_LIBRARY=/build/libdeflate/libdeflate.a \
-  -Djbig=ON -DJBIG_INCLUDE_DIR=/build/jbigkit-2.1/libjbig -DJBIG_LIBRARY=/build/jbigkit-2.1/libjbig/libjbig85.a
+  -DCMAKE_CXX_FLAGS="-O2"
 
 # Build the tools and shared library
 emmake make
@@ -33,4 +31,6 @@ emmake make
 # Build the WASM file for libtiff.
 emcc -O2 -s ALLOW_MEMORY_GROWTH=1 -s ALLOW_TABLE_GROWTH=1 -s STANDALONE_WASM=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s EXPORTED_FUNCTIONS="_TIFFGetField,_TIFFClose,_TIFFReadDirectory,_TIFFSetDirectory,_TIFFReadRGBAImageOriented,_TIFFOpen,_TIFFGetFieldUint32_t,_TIFFGetFieldFloat,_free,_malloc,_calloc,_realloc" -s EXPORTED_RUNTIME_METHODS="ccall,cwrap,addFunction,removeFunction" -s LLD_REPORT_UNDEFINED -s WASM=1 -o "build/libtiff.html" -I/build/tiff-${LIBTIFF_PKGVER}/libtiff libtiff/libtiff.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a ../extra.c --no-entry
 
-# Todo: copy WASM files to the right location.
+# Copy files to the right locations.
+cd ../../
+find build/tiff-4.7.1/tools build/tiff-4.7.1/build -name '*.wasm' -exec sh -c 'echo "Copying $(basename {})"; cp {} $(basename {} .wasm)/$(basename {})'  \;

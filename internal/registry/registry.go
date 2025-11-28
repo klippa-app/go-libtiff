@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	config2 "github.com/klippa-app/go-libtiff/config"
 	"github.com/klippa-app/go-libtiff/internal/instance"
+	"github.com/klippa-app/go-libtiff/libtiff"
 )
 
 var programRegistry = make(map[string][]byte)
@@ -46,8 +46,8 @@ func Run(ctx context.Context, name string, args ...string) error {
 		WASMData:     programRegistry[name],
 		IsProgramRun: true,
 	}
-	
-	config := config2.FromContext(ctx)
+
+	config := libtiff.ConfigFromContext(ctx)
 	if config != nil {
 		instanceConfig.FSConfig = config.FSConfig
 		instanceConfig.CompilationCache = config.CompilationCache
