@@ -5,6 +5,7 @@ import (
 	"sort"
 	"sync"
 
+	config2 "github.com/klippa-app/go-libtiff/config"
 	"github.com/klippa-app/go-libtiff/internal/instance"
 )
 
@@ -41,10 +42,19 @@ func List() []string {
 }
 
 func Run(ctx context.Context, name string, args ...string) error {
-	wazeroInstance, err := instance.GetInstance(ctx, &instance.Config{
+	instanceConfig := &instance.Config{
 		WASMData:     programRegistry[name],
 		IsProgramRun: true,
-	})
+	}
+	
+	config := config2.FromContext(ctx)
+	if config != nil {
+		instanceConfig.FSConfig = config.FSConfig
+		instanceConfig.CompilationCache = config.CompilationCache
+		instanceConfig.Debug = config.Debug
+	}
+
+	wazeroInstance, err := instance.GetInstance(ctx, instanceConfig)
 	if err != nil {
 		return err
 	}

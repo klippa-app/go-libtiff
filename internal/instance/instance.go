@@ -18,11 +18,11 @@ import (
 )
 
 type Config struct {
-	CompilationCacheDir *string
-	WASMData            []byte
-	IsProgramRun        bool
-	FSConfig            wazero.FSConfig
-	Debug               bool
+	CompilationCache wazero.CompilationCache
+	WASMData         []byte
+	IsProgramRun     bool
+	FSConfig         wazero.FSConfig
+	Debug            bool
 }
 
 type Instance struct {
@@ -40,12 +40,8 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 		ctx = experimental.WithFunctionListenerFactory(ctx, logging.NewHostLoggingListenerFactory(os.Stdout, logging.LogScopeFilesystem))
 	}
 	runtimeConfig := wazero.NewRuntimeConfig()
-	if config.CompilationCacheDir != nil {
-		cache, err := wazero.NewCompilationCacheWithDir(*config.CompilationCacheDir)
-		if err != nil {
-			return nil, err
-		}
-		runtimeConfig = runtimeConfig.WithCompilationCache(cache)
+	if config.CompilationCache != nil {
+		runtimeConfig = runtimeConfig.WithCompilationCache(config.CompilationCache)
 	}
 
 	wazeroRuntime := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
@@ -79,7 +75,7 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 				fsConfig = fsConfig.WithDirMount(fmt.Sprintf("%s\\", volumeName), "/")
 			}
 		} else {
-			fsConfig = fsConfig.WithDirMount("./samples", "/samples")
+			fsConfig = fsConfig.WithDirMount("/", "/")
 		}
 	}
 
