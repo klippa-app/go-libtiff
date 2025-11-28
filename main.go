@@ -43,7 +43,16 @@ import (
 var compilationCache wazero.CompilationCache
 
 func init() {
-	compilationCache = wazero.NewCompilationCache()
+	compilationCacheOption := os.Getenv("LIBTIFF_COMPILATION_CACHE_DIR")
+	if compilationCacheOption == "memory" {
+		compilationCache = wazero.NewCompilationCache()
+	} else if compilationCacheOption != "" {
+		var err error
+		compilationCache, err = wazero.NewCompilationCacheWithDir(compilationCacheOption)
+		if err != nil {
+			log.Fatal(fmt.Errorf("could not create compilation cache directory"))
+		}
+	}
 }
 
 func main() {
