@@ -115,6 +115,20 @@ func tiff2img() error {
 				log.Fatal(err)
 			}
 			defer instance.Close(ctx)
+
+			realFile, err := os.Open(input)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer realFile.Close()
+
+			reallTiffOpen, err := instance.TIFFClientOpen(ctx, path.Base(input), realFile)
+			if err != nil {
+				log.Printf("Error on normal file open: %v", err)
+			} else {
+				defer reallTiffOpen.Close(ctx)
+			}
+
 			file, err := instance.TIFFOpenFile(ctx, input)
 			if err != nil {
 				log.Fatal(err)

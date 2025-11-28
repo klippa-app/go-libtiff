@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/klippa-app/go-libtiff/internal/imports"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/experimental"
 	"github.com/tetratelabs/wazero/experimental/logging"
-	"github.com/tetratelabs/wazero/imports/emscripten"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
@@ -54,8 +54,8 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 		return nil, err
 	}
 
-	if _, err := emscripten.InstantiateForModule(ctx, wazeroRuntime, compiledModule); err != nil {
-		return nil, err
+	if _, err := imports.Instantiate(ctx, wazeroRuntime, compiledModule); err != nil {
+		return nil, fmt.Errorf("could not instantiate imports: %w", err)
 	}
 
 	fsConfig := config.FSConfig

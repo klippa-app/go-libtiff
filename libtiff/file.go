@@ -3,6 +3,7 @@ package libtiff
 import (
 	"context"
 	"errors"
+	"io"
 	"iter"
 
 	"github.com/tetratelabs/wazero/api"
@@ -108,6 +109,8 @@ func (f *File) TIFFNumberOfDirectories(ctx context.Context) (uint32, error) {
 	return api.DecodeU32(res[0]), nil
 }
 
+// TIFFOpenFile opens a file from a path. Be aware that this is limited to the
+// virtual filesystem given to the instance.
 func (i *Instance) TIFFOpenFile(ctx context.Context, filePath string) (*File, error) {
 	cStringFilePath, err := i.NewCString(ctx, filePath)
 	if err != nil {
@@ -123,6 +126,43 @@ func (i *Instance) TIFFOpenFile(ctx context.Context, filePath string) (*File, er
 
 	// Result is a pointer to struct_tiff
 	res, err := i.internalInstance.Module.ExportedFunction("TIFFOpen").Call(ctx, cStringFilePath.Pointer, cStringFileMode.Pointer)
+	if err != nil {
+		return nil, err
+	}
+
+	if res[0] == 0 {
+		return nil, errors.New("error while opening tiff file")
+	}
+
+	return &File{
+		Pointer:  res[0],
+		instance: i,
+		closeFunc: func(ctx context.Context) error {
+			_, err := i.internalInstance.Module.ExportedFunction("TIFFClose").Call(ctx, res[0])
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	}, nil
+}
+
+// TIFFClientOpen can open a TIFF file from a reader.
+func (i *Instance) TIFFClientOpen(ctx context.Context, filename string, reader io.ReadSeeker) (*File, error) {
+	cStringFileName, err := i.NewCString(ctx, filename)
+	if err != nil {
+		return nil, err
+	}
+	defer cStringFileName.Free(ctx)
+
+	cStringFileMode, err := i.NewCString(ctx, "r")
+	if err != nil {
+		return nil, err
+	}
+	defer cStringFileMode.Free(ctx)
+
+	// Result is a pointer to struct_tiff
+	res, err := i.internalInstance.Module.ExportedFunction("TIFFClientOpenGo").Call(ctx, cStringFileName.Pointer, cStringFileMode.Pointer, cStringFileMode.Pointer)
 	if err != nil {
 		return nil, err
 	}
