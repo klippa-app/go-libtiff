@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"image"
 	"image/jpeg"
 	"image/png"
 	"log"
@@ -15,6 +16,7 @@ import (
 
 	_ "github.com/klippa-app/go-libtiff/fax2ps"
 	_ "github.com/klippa-app/go-libtiff/fax2tiff"
+	image_jpeg "github.com/klippa-app/go-libtiff/internal/image/image_jpeg"
 	"github.com/klippa-app/go-libtiff/internal/registry"
 	"github.com/klippa-app/go-libtiff/libtiff"
 	_ "github.com/klippa-app/go-libtiff/mkg3states"
@@ -87,8 +89,9 @@ func main() {
 func tiff2img() error {
 	var (
 		// Used for flags.
-		fileType string
-		quality  int
+		fileType    string
+		quality     int
+		progressive bool
 	)
 
 	rootCmd := &cobra.Command{
@@ -133,7 +136,7 @@ func tiff2img() error {
 
 			for i := range file.Directories(ctx) {
 				func() {
-					image, cleanup, err := file.ToImage(ctx)
+					renderedImage, cleanup, err := file.ToImage(ctx)
 					if err != nil {
 						log.Fatal(fmt.Errorf("could not convert tiff image %d to go image: %w", i, err))
 					}
@@ -148,14 +151,17 @@ func tiff2img() error {
 
 					defer outFile.Close()
 					if fileType == "jpeg" {
-						err := jpeg.Encode(outFile, image, &jpeg.Options{
-							Quality: quality,
+						err = image_jpeg.Encode(outFile, renderedImage.(*image.RGBA), image_jpeg.Options{
+							Options: &jpeg.Options{
+								Quality: quality,
+							},
+							Progressive: progressive,
 						})
 						if err != nil {
 							log.Fatal(fmt.Errorf("could not create output jpeg %s for tiff image %d: %w", outputPath, i, err))
 						}
 					} else if fileType == "png" {
-						err := png.Encode(outFile, image)
+						err = png.Encode(outFile, renderedImage)
 						if err != nil {
 							log.Fatal(fmt.Errorf("could not create output png %s for tiff image %d: %w", outputPath, i, err))
 						}
@@ -171,6 +177,7 @@ func tiff2img() error {
 
 	rootCmd.Flags().IntVarP(&quality, "quality", "", 95, "The quality to render the image in, only used for jpeg.")
 	rootCmd.Flags().StringVarP(&fileType, "file-type", "", "jpeg", "The file type to render in, jpeg or png")
+	rootCmd.Flags().BoolVarP(&progressive, "progressive", "", false, "Create progressive images, only used for jpeg.")
 
 	rootCmd.SetOut(os.Stdout)
 	return rootCmd.Execute()
