@@ -130,11 +130,7 @@ func tiff2img() error {
 			}
 			defer instance.Close(ctx)
 
-			maxAlloc := int32(100)
-			file, err := instance.TIFFOpenFileFromReader(ctx, path.Base(input), openFile, uint64(stat.Size()), &libtiff.OpenOptions{
-				MaxSingleMemAlloc:    &maxAlloc,
-				MaxCumulatedMemAlloc: &maxAlloc,
-			})
+			file, err := instance.TIFFOpenFileFromReader(ctx, path.Base(input), openFile, uint64(stat.Size()), nil)
 			if err != nil {
 				log.Fatal(err)
 			}

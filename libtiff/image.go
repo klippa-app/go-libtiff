@@ -42,6 +42,12 @@ func (f *File) ToGoImage(ctx context.Context) (image.Image, func(context.Context
 		return nil, nil, errors.Join(err, cleanupErr)
 	}
 
+	err = f.GetError()
+	if err != nil {
+		cleanupErr := cleanupFunc(ctx)
+		return nil, nil, errors.Join(err, cleanupErr)
+	}
+
 	if results[0] != 1 {
 		cleanupErr := cleanupFunc(ctx)
 		return nil, nil, errors.Join(errors.New("error while converting tiff to RGBA"), cleanupErr)

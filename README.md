@@ -20,11 +20,9 @@
 Note: this library does not provide direct access to all libtiff methods yet,
 please open an issue if you want to see a method added.
 
-**Todo**:
+### Todo
 
-* Create error/warning handler so that libtiff errors are passed to Go
-* Implement more libtiff methods
-* Implement Open options such as memory limits.
+* Implement more libtiff methods (please open issues if you need something)
 
 ## libtiff
 

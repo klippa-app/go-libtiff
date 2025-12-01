@@ -2,6 +2,8 @@ package imports
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"sync"
 
@@ -12,6 +14,20 @@ type File struct {
 	ParamPointer uint64
 	FileSize     uint64
 	Reader       io.ReadSeeker
+	Error        error
+	WarnHandler  func(module string, message string)
+}
+
+func (f *File) GetError() error {
+	if f.Error == nil {
+		return nil
+	}
+
+	// Clear out error.
+	var copyError = f.Error
+	f.Error = nil
+
+	return copyError
 }
 
 var FileReaders = struct {
@@ -150,5 +166,149 @@ type TIFFUnmapFileProcGoCB struct{}
 
 func (cb TIFFUnmapFileProcGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
 	// We don't support this.
+	return
+}
+
+func readCString(mod api.Module, pointer uint32) string {
+	cStringData := []byte{}
+	for {
+		data, success := mod.Memory().Read(pointer, 1)
+		if !success {
+			return string(cStringData)
+		}
+
+		if data[0] == 0x00 {
+			break
+		}
+
+		cStringData = append(cStringData, data[0])
+		pointer++
+	}
+
+	return string(cStringData)
+}
+
+func alloc(ctx context.Context, mod api.Module, size uint64) uint64 {
+	results, err := mod.ExportedFunction("malloc").Call(ctx, size)
+	if err != nil {
+		return 0
+	}
+
+	pointer := results[0]
+	ok := mod.Memory().Write(uint32(results[0]), make([]byte, size))
+	if !ok {
+		return 0
+	}
+
+	return pointer
+}
+
+func formatError(ctx context.Context, mod api.Module, fmtPointer uint32, vaListPointer uint32) error {
+	// 1024 must be enough right?
+	errorPointer := alloc(ctx, mod, 1024)
+	defer func() {
+		// Cleanup error string
+		mod.ExportedFunction("free").Call(ctx, errorPointer)
+	}()
+	results, err := mod.ExportedFunction("vsprintf").Call(ctx, errorPointer, api.EncodeU32(fmtPointer), api.EncodeU32(vaListPointer))
+	if err != nil {
+		return err
+	}
+	if results[0] == 0 {
+		return errors.New("could not read error from memory")
+	}
+	errorText := readCString(mod, uint32(errorPointer))
+	return errors.New(errorText)
+}
+
+type TiffError struct {
+	Module    string
+	TiffError error
+}
+
+func (e TiffError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Module, e.TiffError.Error())
+}
+
+// Is allows use via errors.Is
+func (e *TiffError) Is(err error) bool {
+	if _, ok := err.(*TiffError); ok {
+		return true
+	}
+	return false
+}
+
+func (e *TiffError) Unwrap() error {
+	return e.TiffError
+}
+
+type TIFFOpenOptionsSetErrorHandlerExtRGoCB struct {
+}
+
+func (cb TIFFOpenOptionsSetErrorHandlerExtRGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
+	// Returning 0 will cause libtiff to use the default error handler.
+	_ = stack[0] // Pointer to tiff file.
+	userDataPointer := uint32(stack[1])
+	modulePointer := uint32(stack[2])
+	fmtPointer := uint32(stack[3])
+	vaListPointer := uint32(stack[4])
+
+	mem := mod.Memory()
+	param, ok := mem.ReadUint32Le(userDataPointer)
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	// Check if we have the file referenced in param.
+	FileReaders.Mutex.RLock()
+	openFile, ok := FileReaders.Refs[param]
+	FileReaders.Mutex.RUnlock()
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	openFile.Error = &TiffError{
+		Module:    readCString(mod, modulePointer),
+		TiffError: formatError(ctx, mod, fmtPointer, vaListPointer),
+	}
+
+	stack[0] = uint64(1)
+	return
+}
+
+type TIFFOpenOptionsSetWarningHandlerExtRGoCB struct {
+}
+
+func (cb TIFFOpenOptionsSetWarningHandlerExtRGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
+	// Returning 0 will cause libtiff to use the default error handler.
+	_ = stack[0] // Pointer to tiff file.
+	userDataPointer := uint32(stack[1])
+	modulePointer := uint32(stack[2])
+	fmtPointer := uint32(stack[3])
+	vaListPointer := uint32(stack[4])
+
+	mem := mod.Memory()
+	param, ok := mem.ReadUint32Le(userDataPointer)
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	// Check if we have the file referenced in param.
+	FileReaders.Mutex.RLock()
+	openFile, ok := FileReaders.Refs[param]
+	FileReaders.Mutex.RUnlock()
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	if openFile.WarnHandler != nil {
+		openFile.WarnHandler(readCString(mod, modulePointer), formatError(ctx, mod, fmtPointer, vaListPointer).Error())
+	}
+
+	stack[0] = uint64(1)
 	return
 }

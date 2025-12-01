@@ -50,4 +50,6 @@ func (e *functionExporter) ExportFunctions(b wazero.HostModuleBuilder) {
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFSizeProcGoCB{}, []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("TIFFSizeProcGoCB")
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFMapFileProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFMapFileProcGoCB")
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFUnmapFileProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{}).Export("TIFFUnmapFileProcGoCB")
+	b.NewFunctionBuilder().WithGoModuleFunction(TIFFOpenOptionsSetErrorHandlerExtRGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFOpenOptionsSetErrorHandlerExtRGoCB")
+	b.NewFunctionBuilder().WithGoModuleFunction(TIFFOpenOptionsSetWarningHandlerExtRGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFOpenOptionsSetWarningHandlerExtRGoCB")
 }
