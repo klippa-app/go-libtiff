@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/klippa-app/go-libtiff/internal/image/image_jpeg"
+
 	"github.com/tetratelabs/wazero/api"
 )
 

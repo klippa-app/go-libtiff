@@ -35,7 +35,7 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 	mem := mod.Memory()
 	param, ok := mem.ReadUint32Le(paramPointer)
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -44,7 +44,7 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 	openFile, ok := FileReaders.Refs[param]
 	FileReaders.Mutex.RUnlock()
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -52,13 +52,13 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 	readBuffer := make([]byte, size)
 	n, err := openFile.Reader.Read(readBuffer)
 	if n == 0 || err != nil {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
 	ok = mem.Write(pBufPointer, readBuffer)
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -77,7 +77,7 @@ func (cb TIFFSeekProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 	mem := mod.Memory()
 	param, ok := mem.ReadUint32Le(paramPointer)
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -86,13 +86,13 @@ func (cb TIFFSeekProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 	openFile, ok := FileReaders.Refs[param]
 	FileReaders.Mutex.RUnlock()
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
 	newOffset, err := openFile.Reader.Seek(int64(offset), whence)
 	if err != nil {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -119,7 +119,7 @@ func (cb TIFFSizeProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 	mem := mod.Memory()
 	param, ok := mem.ReadUint32Le(paramPointer)
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 
@@ -128,7 +128,7 @@ func (cb TIFFSizeProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 	openFile, ok := FileReaders.Refs[param]
 	FileReaders.Mutex.RUnlock()
 	if !ok {
-		stack[0] = uint64(0)
+		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
 	}
 

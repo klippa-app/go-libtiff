@@ -38,7 +38,7 @@ import (
 	_ "github.com/klippa-app/go-libtiff/tiffmedian"
 	_ "github.com/klippa-app/go-libtiff/tiffset"
 	_ "github.com/klippa-app/go-libtiff/tiffsplit"
-	
+
 	"github.com/spf13/cobra"
 	"github.com/tetratelabs/wazero"
 )
@@ -138,7 +138,7 @@ func tiff2img() error {
 
 			for i := range file.Directories(ctx) {
 				func() {
-					renderedImage, cleanup, err := file.ToImage(ctx)
+					renderedImage, cleanup, err := file.ToGoImage(ctx)
 					if err != nil {
 						log.Fatal(fmt.Errorf("could not convert tiff image %d to go image: %w", i, err))
 					}
