@@ -128,6 +128,7 @@ You can install the CLI tool using:
 
 ```bash
 go install github.com/klippa-app/go-libtiff@latest
+go-libtiff tiff2pdf input.tiff output.pdf
 ```
 
 This will provide you access to the following tools:
