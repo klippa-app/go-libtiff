@@ -3,9 +3,10 @@ package imports
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
+
+	tiffErrors "github.com/klippa-app/go-libtiff/errors"
 
 	"github.com/tetratelabs/wazero/api"
 )
@@ -221,27 +222,6 @@ func formatError(ctx context.Context, mod api.Module, fmtPointer uint32, vaListP
 	return errors.New(errorText)
 }
 
-type TiffError struct {
-	Module    string
-	TiffError error
-}
-
-func (e TiffError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Module, e.TiffError.Error())
-}
-
-// Is allows use via errors.Is
-func (e *TiffError) Is(err error) bool {
-	if _, ok := err.(*TiffError); ok {
-		return true
-	}
-	return false
-}
-
-func (e *TiffError) Unwrap() error {
-	return e.TiffError
-}
-
 type TIFFOpenOptionsSetErrorHandlerExtRGoCB struct {
 }
 
@@ -269,7 +249,7 @@ func (cb TIFFOpenOptionsSetErrorHandlerExtRGoCB) Call(ctx context.Context, mod a
 		return
 	}
 
-	openFile.Error = &TiffError{
+	openFile.Error = &tiffErrors.TiffError{
 		Module:    readCString(mod, modulePointer),
 		TiffError: formatError(ctx, mod, fmtPointer, vaListPointer),
 	}
