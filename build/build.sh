@@ -29,7 +29,7 @@ emcmake cmake \
 emmake make
 
 # Build the WASM file for libtiff.
-emcc -O2 -s ALLOW_MEMORY_GROWTH=1 -s ALLOW_TABLE_GROWTH=1 -s STANDALONE_WASM=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s EXPORTED_FUNCTIONS="_TIFFGetField,_TIFFClose,_TIFFReadDirectory,_TIFFSetDirectory,_TIFFReadRGBAImageOriented,_TIFFOpen,_TIFFGetFieldUint32_t,_TIFFGetFieldFloat,_free,_malloc,_calloc,_realloc" -s EXPORTED_RUNTIME_METHODS="ccall,cwrap,addFunction,removeFunction" -s LLD_REPORT_UNDEFINED -s WASM=1 -o "build/libtiff.html" -I/build/tiff-${LIBTIFF_PKGVER}/libtiff libtiff/libtiff.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a ../extra.c --no-entry
+emcc -O2 -s ALLOW_MEMORY_GROWTH=1 -s ALLOW_TABLE_GROWTH=1 -s STANDALONE_WASM=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s EXPORTED_FUNCTIONS="_TIFFGetField,_TIFFClose,_TIFFReadDirectory,_TIFFSetDirectory,_TIFFReadRGBAImageOriented,_TIFFCurrentDirectory,_TIFFLastDirectory,_TIFFNumberOfDirectories,_TIFFOpen,_TIFFGetFieldUint32_t,_TIFFGetFieldFloat,_TIFFOpenOptionsAlloc,_TIFFOpenOptionsFree,_TIFFOpenOptionsSetMaxSingleMemAlloc,_TIFFOpenOptionsSetMaxCumulatedMemAlloc,_TIFFOpenOptionsSetErrorHandlerExtR,_TIFFOpenOptionsSetWarningHandlerExtR,_TIFFOpenOptionsSetWarnAboutUnknownTags,_free,_malloc,_calloc,_realloc" -s EXPORTED_RUNTIME_METHODS="ccall,cwrap,addFunction,removeFunction" -s LLD_REPORT_UNDEFINED -s WASM=1 -o "build/libtiff.html" -I/build/tiff-4.7.1/libtiff libtiff/libtiff.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a ../extra.c --no-entry
 
 # Copy files to the right locations.
 cd ../../
