@@ -38,6 +38,7 @@ import (
 	_ "github.com/klippa-app/go-libtiff/tiffmedian"
 	_ "github.com/klippa-app/go-libtiff/tiffset"
 	_ "github.com/klippa-app/go-libtiff/tiffsplit"
+	"github.com/tetratelabs/wazero/sys"
 
 	"github.com/spf13/cobra"
 	"github.com/tetratelabs/wazero"
@@ -83,7 +84,11 @@ func main() {
 
 	err := registry.Run(ctx, os.Args[1], os.Args[1:]...)
 	if err != nil {
-		log.Fatal(err)
+		if exitErr, ok := err.(*sys.ExitError); ok {
+			os.Exit(int(exitErr.ExitCode()))
+		} else {
+			log.Fatal(err)
+		}
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,6 +24,9 @@ type Config struct {
 	IsProgramRun     bool
 	FSConfig         wazero.FSConfig
 	Debug            bool
+	Stdout           io.Writer
+	Stderr           io.Writer
+	RandSource       io.Reader
 }
 
 type Instance struct {
@@ -84,7 +88,21 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 		WithStderr(os.Stderr).
 		WithRandSource(rand.Reader).
 		WithFSConfig(fsConfig).
+		WithSysNanotime().
+		WithSysNanosleep().
 		WithName("")
+
+	if config.Stderr != nil {
+		moduleConfig = moduleConfig.WithStderr(config.Stderr)
+	}
+
+	if config.Stdout != nil {
+		moduleConfig = moduleConfig.WithStdout(config.Stdout)
+	}
+
+	if config.RandSource != nil {
+		moduleConfig = moduleConfig.WithRandSource(config.RandSource)
+	}
 
 	if config.IsProgramRun {
 		return &Instance{
