@@ -104,8 +104,16 @@ func tiff2img() error {
 		Run: func(cmd *cobra.Command, args []string) {
 			ctx := context.Background()
 			input := args[1]
-			if !path.IsAbs(input) {
-				log.Fatal(errors.New("input path must be absolute"))
+
+			openFile, err := os.Open(input)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer openFile.Close()
+
+			stat, err := openFile.Stat()
+			if err != nil {
+				log.Fatal(err)
 			}
 
 			output := args[2]
@@ -117,7 +125,7 @@ func tiff2img() error {
 			}
 			defer instance.Close(ctx)
 
-			file, err := instance.TIFFOpenFile(ctx, input)
+			file, err := instance.TIFFClientOpen(ctx, path.Base(input), openFile, uint64(stat.Size()))
 			if err != nil {
 				log.Fatal(err)
 			}
