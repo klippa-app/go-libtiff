@@ -30,7 +30,7 @@ func (f *File) ToImage(ctx context.Context) (image.Image, func(context.Context) 
 		return f.instance.Free(ctx, imagePointer)
 	}
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadRGBAImageOriented").Call(ctx, f.Pointer, api.EncodeU32(uint32(img.Rect.Max.X)), api.EncodeU32(uint32(img.Rect.Max.Y)), imagePointer, api.EncodeU32(uint32(ORIENTATION_TOPLEFT)), 0)
+	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadRGBAImageOriented").Call(ctx, f.pointer, api.EncodeU32(uint32(img.Rect.Max.X)), api.EncodeU32(uint32(img.Rect.Max.Y)), imagePointer, api.EncodeU32(uint32(ORIENTATION_TOPLEFT)), 0)
 	if err != nil {
 		cleanupErr := cleanupFunc(ctx)
 		return nil, nil, errors.Join(err, cleanupErr)

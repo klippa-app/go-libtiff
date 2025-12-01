@@ -16,7 +16,7 @@ import (
 
 	_ "github.com/klippa-app/go-libtiff/fax2ps"
 	_ "github.com/klippa-app/go-libtiff/fax2tiff"
-	image_jpeg "github.com/klippa-app/go-libtiff/internal/image/image_jpeg"
+	"github.com/klippa-app/go-libtiff/internal/image/image_jpeg"
 	"github.com/klippa-app/go-libtiff/internal/registry"
 	"github.com/klippa-app/go-libtiff/libtiff"
 	_ "github.com/klippa-app/go-libtiff/mkg3states"
@@ -38,6 +38,7 @@ import (
 	_ "github.com/klippa-app/go-libtiff/tiffmedian"
 	_ "github.com/klippa-app/go-libtiff/tiffset"
 	_ "github.com/klippa-app/go-libtiff/tiffsplit"
+	
 	"github.com/spf13/cobra"
 	"github.com/tetratelabs/wazero"
 )
@@ -115,19 +116,6 @@ func tiff2img() error {
 				log.Fatal(err)
 			}
 			defer instance.Close(ctx)
-
-			realFile, err := os.Open(input)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer realFile.Close()
-
-			reallTiffOpen, err := instance.TIFFClientOpen(ctx, path.Base(input), realFile)
-			if err != nil {
-				log.Printf("Error on normal file open: %v", err)
-			} else {
-				defer reallTiffOpen.Close(ctx)
-			}
 
 			file, err := instance.TIFFOpenFile(ctx, input)
 			if err != nil {

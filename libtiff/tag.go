@@ -23,7 +23,7 @@ func (f *File) TIFFGetFieldUint32_t(ctx context.Context, tag TIFFTAG) (uint32, e
 	}
 	defer f.instance.Free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldUint32_t").Call(ctx, f.Pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldUint32_t").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -49,7 +49,7 @@ func (f *File) TIFFGetFieldFloat(ctx context.Context, tag TIFFTAG) (float32, err
 	}
 	defer f.instance.Free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldFloat").Call(ctx, f.Pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldFloat").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}

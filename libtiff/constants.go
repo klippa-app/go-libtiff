@@ -312,13 +312,13 @@ var (
 	/* tag 34377 is private tag registered to Adobe for PhotoShop */
 	TIFFTAG_PHOTOSHOP = TIFFTAG(34377)
 	/* tags 34665, 34853 and 40965 are documented in EXIF specification */
-	TIFFTAG_EXIFIFD = TIFFTAG(34665) /* Pointer to EXIF private directory */
+	TIFFTAG_EXIFIFD = TIFFTAG(34665) /* pointer to EXIF private directory */
 	/* tag 34750 is a private tag registered to Adobe? */
 	TIFFTAG_ICCPROFILE = TIFFTAG(34675) /* ICC profile data */
 	TIFFTAG_IMAGELAYER = TIFFTAG(34732) /* !TIFF/FX image layer information */
 	/* tag 34750 is a private tag registered to Pixel Magic */
 	TIFFTAG_JBIGOPTIONS = TIFFTAG(34750) /* JBIG options */
-	TIFFTAG_GPSIFD      = TIFFTAG(34853) /* Pointer to EXIF GPS private directory */
+	TIFFTAG_GPSIFD      = TIFFTAG(34853) /* pointer to EXIF GPS private directory */
 	/* tags 34908-34914 are private tags registered to SGI */
 	TIFFTAG_FAXRECVPARAMS = TIFFTAG(34908) /* encoded Class 2 ses. params */
 	TIFFTAG_FAXSUBADDRESS = TIFFTAG(34909) /* received SubAddr string */
@@ -329,7 +329,7 @@ var (
 	/* tag 34929 is a private tag registered to FedEx */
 	TIFFTAG_FEDEX_EDR                      = TIFFTAG(34929) /* unknown use */
 	TIFFTAG_IMAGESOURCEDATA                = TIFFTAG(37724) /* http://justsolve.archiveteam.org/wiki/PSD, http://www.adobe.com/devnet-apps/photoshop/fileformatashtml/ */
-	TIFFTAG_INTEROPERABILITYIFD            = TIFFTAG(40965) /* Pointer to EXIF Interoperability private directory */
+	TIFFTAG_INTEROPERABILITYIFD            = TIFFTAG(40965) /* pointer to EXIF Interoperability private directory */
 	TIFFTAG_GDAL_METADATA                  = TIFFTAG(42112) /* Used by the GDAL library */
 	TIFFTAG_GDAL_NODATA                    = TIFFTAG(42113) /* Used by the GDAL library */
 	TIFFTAG_OCE_SCANJOB_DESCRIPTION        = TIFFTAG(50215) /* Used in the Oce scanning process */

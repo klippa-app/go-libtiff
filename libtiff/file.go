@@ -6,13 +6,16 @@ import (
 	"io"
 	"iter"
 
+	"github.com/klippa-app/go-libtiff/internal/imports"
+
 	"github.com/tetratelabs/wazero/api"
 )
 
 type File struct {
-	Pointer   uint64
-	instance  *Instance
-	closeFunc func(context.Context) error
+	pointer    uint64
+	readerFile *imports.File
+	instance   *Instance
+	closeFunc  func(context.Context) error
 }
 
 func (f *File) Close(ctx context.Context) error {
@@ -30,7 +33,7 @@ func (f *File) Directories(ctx context.Context) iter.Seq2[int, error] {
 
 			n++
 
-			res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.Pointer)
+			res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.pointer)
 			if err != nil {
 				yieldRes = yield(n, err)
 				if !yieldRes {
@@ -48,7 +51,7 @@ func (f *File) Directories(ctx context.Context) iter.Seq2[int, error] {
 
 // TIFFCurrentDirectory returns the index of the current directory.
 func (f *File) TIFFCurrentDirectory(ctx context.Context) (uint32, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFCurrentDirectory").Call(ctx, f.Pointer)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFCurrentDirectory").Call(ctx, f.pointer)
 	if err != nil {
 		return 0, err
 	}
@@ -58,7 +61,7 @@ func (f *File) TIFFCurrentDirectory(ctx context.Context) (uint32, error) {
 
 // TIFFLastDirectory returns whether the current directory is the last directory.
 func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFLastDirectory").Call(ctx, f.Pointer)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFLastDirectory").Call(ctx, f.pointer)
 	if err != nil {
 		return false, err
 	}
@@ -74,7 +77,7 @@ func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
 
 // TIFFReadDirectory will read the next directory.
 func (f *File) TIFFReadDirectory(ctx context.Context) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.Pointer)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.pointer)
 	if err != nil {
 		return err
 	}
@@ -88,7 +91,7 @@ func (f *File) TIFFReadDirectory(ctx context.Context) error {
 
 // TIFFSetDirectory will set and read the given directory.
 func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFSetDirectory").Call(ctx, f.Pointer, api.EncodeU32(n))
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFSetDirectory").Call(ctx, f.pointer, api.EncodeU32(n))
 	if err != nil {
 		return err
 	}
@@ -101,7 +104,7 @@ func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
 
 // TIFFNumberOfDirectories will return the amount of directories.
 func (f *File) TIFFNumberOfDirectories(ctx context.Context) (uint32, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFNumberOfDirectories").Call(ctx, f.Pointer)
+	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFNumberOfDirectories").Call(ctx, f.pointer)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +138,7 @@ func (i *Instance) TIFFOpenFile(ctx context.Context, filePath string) (*File, er
 	}
 
 	return &File{
-		Pointer:  res[0],
+		pointer:  res[0],
 		instance: i,
 		closeFunc: func(ctx context.Context) error {
 			_, err := i.internalInstance.Module.ExportedFunction("TIFFClose").Call(ctx, res[0])
@@ -148,38 +151,93 @@ func (i *Instance) TIFFOpenFile(ctx context.Context, filePath string) (*File, er
 }
 
 // TIFFClientOpen can open a TIFF file from a reader.
-func (i *Instance) TIFFClientOpen(ctx context.Context, filename string, reader io.ReadSeeker) (*File, error) {
+func (i *Instance) TIFFClientOpen(ctx context.Context, filename string, reader io.ReadSeeker, fileSize uint64) (*File, error) {
+	imports.FileReaders.Mutex.Lock()
+	fileReaderIndex := imports.FileReaders.Counter
+	imports.FileReaders.Counter++
+	imports.FileReaders.Mutex.Unlock()
+
+	paramPointer, err := i.Malloc(ctx, 4)
+	if err != nil {
+		return nil, err
+	}
+
+	cleanupFileReader := func(ctx context.Context) error {
+		err = i.Free(ctx, paramPointer)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	ok := i.internalInstance.Module.Memory().WriteUint32Le(uint32(paramPointer), fileReaderIndex)
+	if !ok {
+		cleanupFileReader(ctx)
+		return nil, errors.New("could not write file reader param to memory")
+	}
+
+	newFileReader := &imports.File{
+		ParamPointer: paramPointer,
+		FileSize:     fileSize,
+		Reader:       reader,
+	}
+
+	imports.FileReaders.Mutex.Lock()
+	imports.FileReaders.Refs[fileReaderIndex] = newFileReader
+	imports.FileReaders.Mutex.Unlock()
+
+	var oldCleanup = cleanupFileReader
+	newCleanup := func(ctx context.Context) error {
+		err = oldCleanup(ctx)
+		if err != nil {
+			return err
+		}
+		imports.FileReaders.Mutex.Lock()
+		delete(imports.FileReaders.Refs, fileReaderIndex)
+		imports.FileReaders.Mutex.Unlock()
+		return nil
+	}
+	cleanupFileReader = newCleanup
+
 	cStringFileName, err := i.NewCString(ctx, filename)
 	if err != nil {
+		cleanupFileReader(ctx)
 		return nil, err
 	}
 	defer cStringFileName.Free(ctx)
 
 	cStringFileMode, err := i.NewCString(ctx, "r")
 	if err != nil {
+		cleanupFileReader(ctx)
 		return nil, err
 	}
 	defer cStringFileMode.Free(ctx)
 
-	// Result is a pointer to struct_tiff
-	res, err := i.internalInstance.Module.ExportedFunction("TIFFClientOpenGo").Call(ctx, cStringFileName.Pointer, cStringFileMode.Pointer, cStringFileMode.Pointer)
+	// Result is a pointer to struct_tiff.
+	res, err := i.internalInstance.Module.ExportedFunction("TIFFClientOpenGo").Call(ctx, cStringFileName.Pointer, cStringFileMode.Pointer, paramPointer)
 	if err != nil {
+		cleanupFileReader(ctx)
 		return nil, err
 	}
 
 	if res[0] == 0 {
+		cleanupFileReader(ctx)
 		return nil, errors.New("error while opening tiff file")
 	}
 
-	return &File{
-		Pointer:  res[0],
-		instance: i,
+	newFile := &File{
+		pointer:    res[0],
+		readerFile: newFileReader,
+		instance:   i,
 		closeFunc: func(ctx context.Context) error {
 			_, err := i.internalInstance.Module.ExportedFunction("TIFFClose").Call(ctx, res[0])
 			if err != nil {
 				return err
 			}
-			return nil
+
+			return cleanupFileReader(ctx)
 		},
-	}, nil
+	}
+
+	return newFile, nil
 }
