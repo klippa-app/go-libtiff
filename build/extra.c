@@ -11,7 +11,7 @@ extern void TIFFUnmapFileProcGoCB(thandle_t, void *base, toff_t size);
 
 extern int TIFFGetFieldUint32_t(TIFF *tif, uint32_t tag, uint32_t *val);
 extern int TIFFGetFieldFloat(TIFF *tif, uint32_t tag, float *val);
-extern TIFF* TIFFClientOpenGo(const char *filename, const char *mode, thandle_t clientdata);
+extern TIFF* TIFFClientOpenExtGo(const char *filename, const char *mode, thandle_t clientdata, TIFFOpenOptions *opts);
 
 EMSCRIPTEN_KEEPALIVE
 int TIFFGetFieldUint32_t(TIFF *tif, uint32_t tag, uint32_t *val) {
@@ -24,6 +24,6 @@ int TIFFGetFieldFloat(TIFF *tif, uint32_t tag, float *val) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-TIFF* TIFFClientOpenGo(const char *filename, const char *mode, thandle_t clientdata) {
-  return TIFFClientOpen(filename, mode, clientdata, TIFFReadWriteProcGoCB, TIFFReadWriteProcGoCB, TIFFSeekProcGoCB, TIFFCloseProcGoCB, TIFFSizeProcGoCB, TIFFMapFileProcGoCB, TIFFUnmapFileProcGoCB);
+TIFF* TIFFClientOpenExtGo(const char *filename, const char *mode, thandle_t clientdata, TIFFOpenOptions *opts) {
+  return TIFFClientOpenExt(filename, mode, clientdata, TIFFReadWriteProcGoCB, TIFFReadWriteProcGoCB, TIFFSeekProcGoCB, TIFFCloseProcGoCB, TIFFSizeProcGoCB, TIFFMapFileProcGoCB, TIFFUnmapFileProcGoCB, opts);
 }
