@@ -20,6 +20,12 @@
 Note: this library does not provide direct access to all libtiff methods yet,
 please open an issue if you want to see a method added.
 
+**Todo**:
+
+* Create error/warning handler so that libtiff errors are passed to Go
+* Implement more libtiff methods
+* Implement Open options such as memory limits.
+
 ## libtiff
 
 This project uses the libtiff library (https://libtiff.gitlab.io/libtiff/) to process the TIFF files . 
