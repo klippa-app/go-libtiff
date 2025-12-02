@@ -27,13 +27,13 @@ func (f *File) ToGoImage(ctx context.Context) (image.Image, func(context.Context
 	img.Rect = image.Rectangle{Min: image.Point{X: 0, Y: 0}, Max: image.Point{X: width, Y: height}}
 	img.Stride = img.Rect.Max.X * 4
 	nBytes := img.Rect.Max.X * img.Rect.Max.Y * 4
-	imagePointer, err := f.instance.Malloc(ctx, uint64(nBytes))
+	imagePointer, err := f.instance.malloc(ctx, uint64(nBytes))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	cleanupFunc := func(ctx context.Context) error {
-		return f.instance.Free(ctx, imagePointer)
+		return f.instance.free(ctx, imagePointer)
 	}
 
 	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadRGBAImageOriented").Call(ctx, f.pointer, api.EncodeU32(uint32(img.Rect.Max.X)), api.EncodeU32(uint32(img.Rect.Max.Y)), imagePointer, api.EncodeU32(uint32(ORIENTATION_TOPLEFT)), 0)

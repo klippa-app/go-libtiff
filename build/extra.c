@@ -12,12 +12,32 @@ extern int TIFFOpenOptionsSetErrorHandlerExtRGoCB(TIFF *tif, void *user_data, co
 extern int TIFFOpenOptionsSetWarningHandlerExtRGoCB(TIFF *tif, void *user_data, const char *module, const char *fmt, va_list ap);
 
 EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldUint16_t(TIFF *tif, uint32_t tag, uint16_t *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
 int TIFFGetFieldUint32_t(TIFF *tif, uint32_t tag, uint32_t *val) {
   return TIFFGetField(tif, tag, val);
 }
 
 EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldInt(TIFF *tif, uint32_t tag, int *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
 int TIFFGetFieldFloat(TIFF *tif, uint32_t tag, float *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDouble(TIFF *tif, uint32_t tag, double *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldConstChar(TIFF *tif, uint32_t tag, const char** val) {
   return TIFFGetField(tif, tag, val);
 }
 

@@ -172,13 +172,13 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	imports.FileReaders.Counter++
 	imports.FileReaders.Mutex.Unlock()
 
-	paramPointer, err := i.Malloc(ctx, 4)
+	paramPointer, err := i.malloc(ctx, 4)
 	if err != nil {
 		return nil, err
 	}
 
 	cleanupFileReader := func(ctx context.Context) error {
-		err := i.Free(ctx, paramPointer)
+		err := i.free(ctx, paramPointer)
 		if err != nil {
 			return err
 		}
@@ -212,13 +212,13 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	}
 	cleanupFileReader = newCleanup
 
-	cStringFilePath, err := i.NewCString(ctx, filePath)
+	cStringFilePath, err := i.newCString(ctx, filePath)
 	if err != nil {
 		return nil, err
 	}
 	defer cStringFilePath.Free(ctx)
 
-	cStringFileMode, err := i.NewCString(ctx, "r")
+	cStringFileMode, err := i.newCString(ctx, "r")
 	if err != nil {
 		return nil, err
 	}
@@ -328,13 +328,13 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 	imports.FileReaders.Counter++
 	imports.FileReaders.Mutex.Unlock()
 
-	paramPointer, err := i.Malloc(ctx, 4)
+	paramPointer, err := i.malloc(ctx, 4)
 	if err != nil {
 		return nil, err
 	}
 
 	cleanupFileReader := func(ctx context.Context) error {
-		err := i.Free(ctx, paramPointer)
+		err := i.free(ctx, paramPointer)
 		if err != nil {
 			return err
 		}
@@ -370,14 +370,14 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 	}
 	cleanupFileReader = newCleanup
 
-	cStringFileName, err := i.NewCString(ctx, filename)
+	cStringFileName, err := i.newCString(ctx, filename)
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
 	}
 	defer cStringFileName.Free(ctx)
 
-	cStringFileMode, err := i.NewCString(ctx, "r")
+	cStringFileMode, err := i.newCString(ctx, "r")
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
