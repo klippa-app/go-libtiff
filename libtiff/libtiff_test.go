@@ -316,7 +316,7 @@ var _ = Describe("image", func() {
 			})
 			Expect(err).To(BeNil())
 			Expect(image).To(Not(BeNil()))
-			Expect(image).To(HaveLen(64150))
+			Expect(image).To(Or(HaveLen(64150), HaveLen(65413))) // First is Go, second is libjpegturbo.
 		})
 
 		It("allows rendering the image to a PNG image", func() {
