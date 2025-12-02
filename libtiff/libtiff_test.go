@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/klippa-app/go-libtiff/internal/imports"
 	"github.com/klippa-app/go-libtiff/libtiff"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,6 +34,9 @@ var _ = AfterSuite(func() {
 	Expect(err).To(BeNil())
 
 	Eventually(Goroutines).ShouldNot(HaveLeaked())
+
+	// Check if all files are closed.
+	Expect(imports.FileReaders.Refs).To(HaveLen(0))
 })
 
 var _ = Describe("files", func() {
