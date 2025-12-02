@@ -79,7 +79,7 @@ if err != nil {
 }
 defer instance.Close(ctx)
 
-file, err := instance.TIFFOpenFile(ctx, input)
+file, err := instance.TIFFOpenFileFromPath(ctx, input, nil)
 if err != nil {
 	log.Fatal(err)
 }
