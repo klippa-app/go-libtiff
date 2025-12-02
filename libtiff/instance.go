@@ -24,6 +24,9 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 		CompilationCache: config.CompilationCache,
 		FSConfig:         config.FSConfig,
 		Debug:            config.Debug,
+		Stdout:           config.Stdout,
+		Stderr:           config.Stderr,
+		RandSource:       config.RandSource,
 	})
 	if err != nil {
 		return nil, err

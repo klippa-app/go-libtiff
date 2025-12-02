@@ -82,7 +82,7 @@ func main() {
 		return
 	}
 
-	err := registry.Run(ctx, os.Args[1], os.Args[1:]...)
+	err := registry.Run(ctx, os.Args[1], os.Args[2:]...)
 	if err != nil {
 		if exitErr, ok := err.(*sys.ExitError); ok {
 			os.Exit(int(exitErr.ExitCode()))

@@ -52,6 +52,9 @@ func Run(ctx context.Context, name string, args ...string) error {
 		instanceConfig.FSConfig = config.FSConfig
 		instanceConfig.CompilationCache = config.CompilationCache
 		instanceConfig.Debug = config.Debug
+		instanceConfig.Stdout = config.Stdout
+		instanceConfig.Stderr = config.Stderr
+		instanceConfig.RandSource = config.RandSource
 	}
 
 	wazeroInstance, err := instance.GetInstance(ctx, instanceConfig)
@@ -60,7 +63,8 @@ func Run(ctx context.Context, name string, args ...string) error {
 	}
 	defer wazeroInstance.Close(ctx)
 
-	if err := wazeroInstance.RunProgram(ctx, args...); err != nil {
+	programArgs := append([]string{name}, args...)
+	if err := wazeroInstance.RunProgram(ctx, programArgs...); err != nil {
 		return err
 	}
 

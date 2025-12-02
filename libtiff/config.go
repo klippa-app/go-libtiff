@@ -2,6 +2,7 @@ package libtiff
 
 import (
 	"context"
+	"io"
 
 	"github.com/tetratelabs/wazero"
 )
@@ -10,6 +11,9 @@ type Config struct {
 	CompilationCache wazero.CompilationCache
 	FSConfig         wazero.FSConfig
 	Debug            bool
+	Stdout           io.Writer
+	Stderr           io.Writer
+	RandSource       io.Reader
 }
 
 type configCtxKey struct{}
