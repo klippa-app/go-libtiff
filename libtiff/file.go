@@ -322,6 +322,11 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 }
 
 // TIFFOpenFileFromReader can open a TIFF file from a reader.
+// The filename property is for meaningful errors/warning and the TIFFFileName
+// method, it's not required to enter the actual filename.
+// The fileSize is for some validation checks and memory allocation limits, the
+// fileSize is not absolutely required, but the file might not always be opened
+// correctly if the fileSize is not given.
 func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, reader io.ReadSeeker, fileSize uint64, options *OpenOptions) (*File, error) {
 	imports.FileReaders.Mutex.Lock()
 	fileReaderIndex := imports.FileReaders.Counter
