@@ -95,6 +95,11 @@ for i := range file.Directories(ctx) {
 }
 ```
 
+### Instance re-use
+
+Since libtiff allows you to open multiple files at the same time and operate on them, you can re-use the instance
+for multiple files. This is more efficient than opening a new instance for every file.
+
 ## libtiff tools
 
 You can use any of the libtiff tools by importing a tool package, for example:
