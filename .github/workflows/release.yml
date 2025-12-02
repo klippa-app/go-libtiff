@@ -26,18 +26,18 @@ jobs:
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          GOARCH=amd64 go build -o artifacts/pdfium-webassembly-linux-amd64 main.go
-          GOARCH=arm64 go build -o artifacts/pdfium-webassembly-linux-arm64 main.go
+          GOARCH=amd64 go build -o artifacts/go-libtiff-linux-amd64 main.go
+          GOARCH=arm64 go build -o artifacts/go-libtiff-linux-arm64 main.go
       - name: Build MacOS
         if: matrix.os == 'macos-latest'
         run: |
-          GOARCH=amd64 go build -o artifacts/pdfium-webassembly-mac-amd64 main.go
-          GOARCH=arm64 go build -o artifacts/pdfium-webassembly-mac-arm64 main.go
+          GOARCH=amd64 go build -o artifacts/go-libtiff-mac-amd64 main.go
+          GOARCH=arm64 go build -o artifacts/go-libtiff-mac-arm64 main.go
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
           $env:GOARCH = 'amd64'
-          go build -o artifacts/pdfium-webassembly-windows-amd64 main.go
+          go build -o artifacts/go-libtiff-windows-amd64 main.go
       - uses: actions/upload-artifact@v4
         with:
           name: builds-webassembly-${{ matrix.os }}
