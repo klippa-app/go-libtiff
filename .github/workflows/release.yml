@@ -1,0 +1,48 @@
+name: Release binaries
+
+on:
+  release:
+    types: [created]
+
+env:
+  GO_VERSION: "1.25"
+
+jobs:
+  release-webassembly:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          GOARCH=amd64 go build -o artifacts/pdfium-webassembly-linux-amd64 main.go
+          GOARCH=arm64 go build -o artifacts/pdfium-webassembly-linux-arm64 main.go
+      - name: Build MacOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          GOARCH=amd64 go build -o artifacts/pdfium-webassembly-mac-amd64 main.go
+          GOARCH=arm64 go build -o artifacts/pdfium-webassembly-mac-arm64 main.go
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          $env:GOARCH = 'amd64'
+          go build -o artifacts/pdfium-webassembly-windows-amd64 main.go
+      - uses: actions/upload-artifact@v4
+        with:
+          name: builds-webassembly-${{ matrix.os }}
+          path: artifacts
+      - uses: AButler/upload-release-assets@v3.0
+        with:
+          files: 'artifacts/*'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
