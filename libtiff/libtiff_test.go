@@ -120,6 +120,15 @@ var _ = Describe("tags", func() {
 			Expect(val).To(Equal(int(75)))
 		})
 
+		/*
+			// We don't have a sample with doubles.
+				It("returns the correct double tag values", func() {
+					val, err := file.TIFFGetFieldInt(context.Background(), libtiff.TIFFTAG_STONITS)
+					Expect(err).To(BeNil())
+					Expect(val).To(Equal(int(75)))
+				})
+		*/
+
 		It("returns the correct const char values", func() {
 			tiffFile, err := instance.TIFFOpenFileFromPath(context.Background(), "/testdata/multipage-sample.tif", nil)
 			Expect(err).To(BeNil())

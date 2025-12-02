@@ -121,7 +121,7 @@ func (f *File) TIFFGetFieldFloat(ctx context.Context, tag TIFFTAG) (float32, err
 }
 
 func (f *File) TIFFGetFieldDouble(ctx context.Context, tag TIFFTAG) (float64, error) {
-	valuePointer, err := f.instance.malloc(ctx, 4)
+	valuePointer, err := f.instance.malloc(ctx, 8)
 	if err != nil {
 		return 0, err
 	}
