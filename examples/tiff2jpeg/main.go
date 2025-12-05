@@ -13,16 +13,18 @@ import (
 )
 
 func main() {
-	// Please be aware that these need to be absolute, and that the path
-	// needs to be available inside the Wazero runtime.
-	input := "/input/input.tiff"
-	output := "/output/output-%d.jpeg"
+	// Please be aware that the input path needs to be absolute, and that the
+	// path needs to be available inside the Wazero runtime.
+	input := "/testdata/multipage-sample.tif"
+
+	// The output path is handled in Go, so that needs to be handled as such,
+	// so not a Wazero runtime path, and can be relative.
+	output := "./testdata/multipage-sample.tif-%d.jpeg"
 
 	ctx := context.Background()
 	instance, err := libtiff.GetInstance(ctx, &libtiff.Config{
 		FSConfig: wazero.NewFSConfig().
-			WithReadOnlyDirMount("./input", "/input").
-			WithDirMount("./output", "/output"),
+			WithReadOnlyDirMount("./testdata", "/testdata"),
 	})
 	if err != nil {
 		log.Fatal(err)

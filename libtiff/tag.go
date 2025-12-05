@@ -16,6 +16,13 @@ func (e TagNotDefinedError) Error() string {
 	return fmt.Sprintf("Tag %d was not found in the current directory", e.Tag)
 }
 
+func (e *TagNotDefinedError) Is(err error) bool {
+	if _, ok := err.(*TagNotDefinedError); ok {
+		return true
+	}
+	return false
+}
+
 func (f *File) TIFFGetFieldUint16_t(ctx context.Context, tag TIFFTAG) (uint16, error) {
 	valuePointer, err := f.instance.malloc(ctx, 2)
 	if err != nil {
