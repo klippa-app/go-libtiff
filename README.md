@@ -144,7 +144,6 @@ This will provide you access to the following tools:
 
 - fax2ps
 - fax2tiff
-- mkg3states
 - pal2rgb
 - ppm2tiff
 - raw2tiff
@@ -167,6 +166,9 @@ This will provide you access to the following tools:
 
 Please be aware that these tools mount your own filesystem inside the Wazero runtime to give the tools access to the
 files, since they can't access the files from Go itself, the only difference is in the tiff2img tool.
+
+Note: the tool mkg3states is not available because it won't run in Wazero, the tool also seems to be more of a build
+tool than a runtime tool.
 
 ## Compilation cache
 
