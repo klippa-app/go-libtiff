@@ -95,6 +95,8 @@ for i := range file.Directories(ctx) {
 }
 ```
 
+More examples can be found in the [examples](https://github.com/klippa-app/go-libtiff/tree/main/examples) directory.
+
 ### Instance re-use
 
 Since libtiff allows you to open multiple files at the same time and operate on them, you can re-use the instance
@@ -127,7 +129,7 @@ ctx = libtiff.ConfigInContext(ctx, &libtiff.Config{
 })
 err := tiff2pdf.Run(ctx, []string{"input.tiff", "output.pdf"})
 if err != nil {
-log.Fatal(err)
+	log.Fatal(err)
 }
 ```
 
