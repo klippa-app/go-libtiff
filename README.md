@@ -1,6 +1,12 @@
 # go-libtiff
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/klippa-app/go-libtiff/go-libtiff.svg)](https://pkg.go.dev/github.com/klippa-app/go-libtiff)
+[![Build Status][build-status]][build-url]
+[![codecov](https://codecov.io/gh/klippa-app/go-libtiff/branch/main/graph/badge.svg?token=hVDtkW3En4)](https://codecov.io/gh/klippa-app/go-libtiff)
+
+[build-status]:https://github.com/klippa-app/go-libtiff/workflows/Go%20tests/badge.svg
+
+[build-url]:https://github.com/klippa-app/go-libtiff/actions
 
 :rocket: *Easy to use TIFF library using Go, libtiff and Wazero* :rocket:
 
