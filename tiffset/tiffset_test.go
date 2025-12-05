@@ -6,11 +6,11 @@ import (
 
 	"github.com/klippa-app/go-libtiff/libtiff"
 	"github.com/klippa-app/go-libtiff/tiffset"
-	"github.com/tetratelabs/wazero/sys"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/sys"
 )
 
 var _ = Describe("tiffset", func() {

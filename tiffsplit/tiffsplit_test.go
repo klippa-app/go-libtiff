@@ -5,12 +5,12 @@ import (
 	"context"
 
 	"github.com/klippa-app/go-libtiff/libtiff"
-	"github.com/klippa-app/go-libtiff/tiffmedian"
 	"github.com/klippa-app/go-libtiff/tiffsplit"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/sys"
 )
 
 var _ = Describe("tiffsplit", func() {
@@ -31,9 +31,11 @@ var _ = Describe("tiffsplit", func() {
 		ctx = libtiff.ConfigInContext(ctx, config)
 	})
 	It("shows the help text", func() {
-		err := tiffsplit.Run(ctx, []string{"-help"})
-		Expect(err).To(BeNil())
-		Expect(stdout.String()).To(ContainSubstring("usage: tiffsplit"))
-		Expect(stderr.String()).To(BeEmpty())
+		err := tiffsplit.Run(ctx, []string{""})
+		// For some reason tiffsplit works different from the other tools.
+		// It outputs the help on stderr and returns exit code 1.
+		Expect(err).To(MatchError(sys.NewExitError(1)))
+		Expect(stdout.String()).To(BeEmpty())
+		Expect(stderr.String()).To(ContainSubstring("usage: tiffsplit"))
 	})
 })
