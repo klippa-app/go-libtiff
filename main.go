@@ -19,7 +19,6 @@ import (
 	"github.com/klippa-app/go-libtiff/internal/image/image_jpeg"
 	"github.com/klippa-app/go-libtiff/internal/registry"
 	"github.com/klippa-app/go-libtiff/libtiff"
-	_ "github.com/klippa-app/go-libtiff/mkg3states"
 	_ "github.com/klippa-app/go-libtiff/pal2rgb"
 	_ "github.com/klippa-app/go-libtiff/ppm2tiff"
 	_ "github.com/klippa-app/go-libtiff/raw2tiff"
