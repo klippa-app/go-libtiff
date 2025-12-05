@@ -6,6 +6,7 @@ import (
 
 	"github.com/klippa-app/go-libtiff/fax2ps"
 	"github.com/klippa-app/go-libtiff/libtiff"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tetratelabs/wazero"

@@ -1,18 +1,19 @@
-package fax2tiff_test
+package tiffsplit_test
 
 import (
 	"bytes"
 	"context"
 
-	"github.com/klippa-app/go-libtiff/fax2tiff"
 	"github.com/klippa-app/go-libtiff/libtiff"
+	"github.com/klippa-app/go-libtiff/tiffmedian"
+	"github.com/klippa-app/go-libtiff/tiffsplit"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tetratelabs/wazero"
 )
 
-var _ = Describe("fax2tiff", func() {
+var _ = Describe("tiffsplit", func() {
 	var ctx context.Context
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -30,9 +31,9 @@ var _ = Describe("fax2tiff", func() {
 		ctx = libtiff.ConfigInContext(ctx, config)
 	})
 	It("shows the help text", func() {
-		err := fax2tiff.Run(ctx, []string{"-help"})
+		err := tiffsplit.Run(ctx, []string{"-help"})
 		Expect(err).To(BeNil())
-		Expect(stdout.String()).To(ContainSubstring("usage: fax2tiff"))
+		Expect(stdout.String()).To(ContainSubstring("usage: tiffsplit"))
 		Expect(stderr.String()).To(BeEmpty())
 	})
 })

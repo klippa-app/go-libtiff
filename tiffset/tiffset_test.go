@@ -1,18 +1,19 @@
-package fax2tiff_test
+package tiffset_test
 
 import (
 	"bytes"
 	"context"
 
-	"github.com/klippa-app/go-libtiff/fax2tiff"
 	"github.com/klippa-app/go-libtiff/libtiff"
+	"github.com/klippa-app/go-libtiff/tiffset"
+	"github.com/tetratelabs/wazero/sys"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/tetratelabs/wazero"
 )
 
-var _ = Describe("fax2tiff", func() {
+var _ = Describe("tiffset", func() {
 	var ctx context.Context
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -30,9 +31,11 @@ var _ = Describe("fax2tiff", func() {
 		ctx = libtiff.ConfigInContext(ctx, config)
 	})
 	It("shows the help text", func() {
-		err := fax2tiff.Run(ctx, []string{"-help"})
-		Expect(err).To(BeNil())
-		Expect(stdout.String()).To(ContainSubstring("usage: fax2tiff"))
-		Expect(stderr.String()).To(BeEmpty())
+		err := tiffset.Run(ctx, []string{})
+		// For some reason tiffset works different from the other tools.
+		// It outputs the help on stderr and returns exit code 1.
+		Expect(err).To(MatchError(sys.NewExitError(1)))
+		Expect(stdout.String()).To(BeEmpty())
+		Expect(stderr.String()).To(ContainSubstring("usage: tiffset"))
 	})
 })
