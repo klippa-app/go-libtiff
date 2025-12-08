@@ -89,7 +89,7 @@ type TIFFSeekProcGoCB struct {
 func (cb TIFFSeekProcGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
 	paramPointer := uint32(stack[0])
 	offset := uint32(stack[1])
-	whence := int(stack[2])
+	whence := api.DecodeI32(stack[2])
 
 	mem := mod.Memory()
 	param, ok := mem.ReadUint32Le(paramPointer)
@@ -107,7 +107,7 @@ func (cb TIFFSeekProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 		return
 	}
 
-	newOffset, err := openFile.Reader.Seek(int64(offset), whence)
+	newOffset, err := openFile.Reader.Seek(int64(offset), int(whence))
 	if err != nil {
 		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
