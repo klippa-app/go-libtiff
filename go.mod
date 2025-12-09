@@ -1,6 +1,6 @@
 module github.com/klippa-app/go-libtiff
 
-go 1.24.2
+go 1.25.3
 
 require (
 	github.com/onsi/ginkgo/v2 v2.27.3
