@@ -47,7 +47,7 @@ jobs:
     container:
       image: alpine:3.22
       env:
-        CGO_ENABLED: 0
+        CGO_ENABLED: 1
     steps:
       - uses: actions/checkout@v4
 
@@ -55,12 +55,18 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Set up libjpeg-turbo
+        run: |
+          apk add --no-cache libturbojpeg-dev
+      - name: Set up musl
+        run: |
+          apk add --no-cache musl
       - name: Run tests
         run: |
-          go test ./... -v
+          go test ./... -tags libtiff_use_turbojpeg -v
       - name: Test build
         run: |
-          go build main.go
+          go build -tags libtiff_use_turbojpeg main.go
 
   test-cgo-linux:
     env:
