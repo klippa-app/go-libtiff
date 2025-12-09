@@ -57,10 +57,10 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Set up libjpeg-turbo
         run: |
-          apk add --no-cache libturbojpeg
+          apk add --no-cache pkgconf libturbojpeg libjpeg-turbo-dev
       - name: Set up musl
         run: |
-          apk add --no-cache musl
+          apk add --no-cache musl build-base perl git musl-dev
       - name: Run tests
         run: |
           go test ./... -tags libtiff_use_turbojpeg -v
