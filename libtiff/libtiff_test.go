@@ -74,6 +74,44 @@ var _ = Describe("files", func() {
 			})
 		})
 	})
+
+	Context("a multipage tiff file", func() {
+		var file *libtiff.File
+		var realFile *os.File
+
+		BeforeEach(func() {
+			filePath := "../testdata/multipage-sample.tif"
+			f, err := os.Open(filePath)
+			Expect(err).To(BeNil())
+			Expect(f).To(Not(BeNil()))
+			realFile = f
+
+			stat, err := f.Stat()
+			Expect(err).To(BeNil())
+			Expect(stat).To(Not(BeNil()))
+
+			tiffFile, err := instance.TIFFOpenFileFromReader(context.Background(), path.Base(filePath), f, uint64(stat.Size()), nil)
+			Expect(err).To(BeNil())
+			Expect(tiffFile).To(Not(BeNil()))
+			file = tiffFile
+		})
+
+		AfterEach(func() {
+			file.Close(context.Background())
+			realFile.Close()
+		})
+
+		It("allows traversing the directories", func() {
+			files := []int{}
+			for i, err := range file.Directories(context.Background()) {
+				files = append(files, i)
+				Expect(err).To(BeNil())
+			}
+			Expect(files).To(Equal([]int{
+				0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+			}))
+		})
+	})
 })
 
 var _ = Describe("tags", func() {
