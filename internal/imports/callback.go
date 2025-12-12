@@ -71,7 +71,7 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 	n, err := openFile.Reader.Read(readBuffer)
 	if n == 0 || err != nil {
 		if err != nil && openFile.WarnHandler != nil {
-			openFile.WarnHandler("TIFFReadWriteProcGoCB", fmt.Sprintf("Read %d bytes with err: %v", size, err))
+			openFile.WarnHandler("TIFFReadWriteProcGoCB", fmt.Sprintf("Read %d (requested %d) bytes with err: %v", n, size, err))
 		}
 		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
