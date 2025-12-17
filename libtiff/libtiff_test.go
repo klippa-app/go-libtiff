@@ -4,8 +4,10 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"log"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/klippa-app/go-libtiff/internal/imports"
 	"github.com/klippa-app/go-libtiff/libtiff"
@@ -379,6 +381,64 @@ var _ = Describe("image", func() {
 			Expect(err).To(BeNil())
 			Expect(image).To(Not(BeNil()))
 			Expect(image).To(HaveLen(321744))
+		})
+	})
+})
+
+var _ = Describe("multithreading", func() {
+	Context("a normal tiff file", func() {
+		It("allows multiple tiff files to be processed at the same time", func() {
+			// 4 concurrent tiff files.
+			sem := make(chan struct{}, 4)
+			var wg sync.WaitGroup
+
+			for i := 0; i < 100; i++ {
+				wg.Add(1)
+
+				go func(id int) {
+					defer wg.Done()
+					defer GinkgoRecover()
+
+					sem <- struct{}{}
+					defer func() { <-sem }()
+
+					tiffFile, err := instance.TIFFOpenFileFromPath(context.Background(), "/testdata/multipage-sample.tif", nil)
+					Expect(err).To(BeNil())
+					Expect(tiffFile).To(Not(BeNil()))
+					defer func() {
+						err = tiffFile.Close(context.Background())
+						if err != nil {
+							log.Printf("Close failed: %v", err)
+						}
+					}()
+
+					val, err := tiffFile.TIFFCurrentDirectory(context.Background())
+					Expect(err).To(BeNil())
+					Expect(val).To(Equal(uint32(0)))
+
+					image, cleanup, err := tiffFile.ToGoImage(context.Background())
+					Expect(err).To(BeNil())
+					Expect(image).To(Not(BeNil()))
+					err = cleanup(context.Background())
+					Expect(err).To(BeNil())
+
+					// Move to last directory.
+					err = tiffFile.TIFFSetDirectory(context.Background(), 5)
+					Expect(err).To(BeNil())
+
+					val, err = tiffFile.TIFFCurrentDirectory(context.Background())
+					Expect(err).To(BeNil())
+					Expect(val).To(Equal(uint32(5)))
+
+					image, cleanup, err = tiffFile.ToGoImage(context.Background())
+					Expect(err).To(BeNil())
+					Expect(image).To(Not(BeNil()))
+					err = cleanup(context.Background())
+					Expect(err).To(BeNil())
+				}(i)
+			}
+
+			wg.Wait()
 		})
 	})
 })

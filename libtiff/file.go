@@ -45,7 +45,7 @@ func (f *File) Directories(ctx context.Context) iter.Seq2[int, error] {
 
 			n++
 
-			res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.pointer)
+			res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFReadDirectory", f.pointer)
 			if err != nil {
 				yieldRes = yield(n, err)
 				if !yieldRes {
@@ -71,7 +71,7 @@ func (f *File) Directories(ctx context.Context) iter.Seq2[int, error] {
 
 // TIFFCurrentDirectory returns the index of the current directory.
 func (f *File) TIFFCurrentDirectory(ctx context.Context) (uint32, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFCurrentDirectory").Call(ctx, f.pointer)
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCurrentDirectory", f.pointer)
 	if err != nil {
 		return 0, err
 	}
@@ -86,7 +86,7 @@ func (f *File) TIFFCurrentDirectory(ctx context.Context) (uint32, error) {
 
 // TIFFLastDirectory returns whether the current directory is the last directory.
 func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFLastDirectory").Call(ctx, f.pointer)
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFLastDirectory", f.pointer)
 	if err != nil {
 		return false, err
 	}
@@ -107,7 +107,7 @@ func (f *File) TIFFLastDirectory(ctx context.Context) (bool, error) {
 
 // TIFFReadDirectory will read the next directory.
 func (f *File) TIFFReadDirectory(ctx context.Context) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFReadDirectory").Call(ctx, f.pointer)
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFReadDirectory", f.pointer)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (f *File) TIFFReadDirectory(ctx context.Context) error {
 
 // TIFFSetDirectory will set and read the given directory.
 func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFSetDirectory").Call(ctx, f.pointer, api.EncodeU32(n))
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFSetDirectory", f.pointer, api.EncodeU32(n))
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (f *File) TIFFSetDirectory(ctx context.Context, n uint32) error {
 
 // TIFFNumberOfDirectories will return the amount of directories.
 func (f *File) TIFFNumberOfDirectories(ctx context.Context) (uint32, error) {
-	res, err := f.instance.internalInstance.Module.ExportedFunction("TIFFNumberOfDirectories").Call(ctx, f.pointer)
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFNumberOfDirectories", f.pointer)
 	if err != nil {
 		return 0, err
 	}
@@ -224,7 +224,7 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	}
 	defer cStringFileMode.Free(ctx)
 
-	TIFFOpenOptionsAlloc, err := i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsAlloc").Call(ctx)
+	TIFFOpenOptionsAlloc, err := i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsAlloc")
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
@@ -243,13 +243,13 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 			return err
 		}
 
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsFree").Call(ctx, TIFFOpenOptionsAllocPointer)
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsFree", TIFFOpenOptionsAllocPointer)
 		return err
 	}
 	cleanupFileReader = newCleanup
 
 	if options != nil && options.MaxSingleMemAlloc != nil {
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetMaxSingleMemAlloc").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxSingleMemAlloc))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetMaxSingleMemAlloc", TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxSingleMemAlloc))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -257,7 +257,7 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	}
 
 	if options != nil && options.MaxCumulatedMemAlloc != nil {
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetMaxCumulatedMemAlloc").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxCumulatedMemAlloc))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetMaxCumulatedMemAlloc", TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxCumulatedMemAlloc))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -269,7 +269,7 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 		if *options.WarnAboutUnknownTags {
 			value = int32(1)
 		}
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetWarnAboutUnknownTags").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(value))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetWarnAboutUnknownTags", TIFFOpenOptionsAllocPointer, api.EncodeI32(value))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -278,21 +278,21 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 
 	if options != nil && options.WarnHandler != nil {
 		newFileReader.WarnHandler = options.WarnHandler
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetWarningHandlerExtRGo").Call(ctx, TIFFOpenOptionsAllocPointer, paramPointer)
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetWarningHandlerExtRGo", TIFFOpenOptionsAllocPointer, paramPointer)
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
 		}
 	}
 
-	_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetErrorHandlerExtRGo").Call(ctx, TIFFOpenOptionsAllocPointer, paramPointer)
+	_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetErrorHandlerExtRGo", TIFFOpenOptionsAllocPointer, paramPointer)
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
 	}
 
 	// Result is a pointer to struct_tiff
-	res, err := i.internalInstance.Module.ExportedFunction("TIFFOpenExtGo").Call(ctx, cStringFilePath.Pointer, cStringFileMode.Pointer, TIFFOpenOptionsAllocPointer)
+	res, err := i.internalInstance.CallExportedFunction(ctx, "TIFFOpenExtGo", cStringFilePath.Pointer, cStringFileMode.Pointer, TIFFOpenOptionsAllocPointer)
 	if err != nil {
 		return nil, err
 	}
@@ -306,12 +306,13 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	if res[0] == 0 {
 		return nil, errors.New("error while opening tiff file")
 	}
+	filePointer := res[0]
 
 	return &File{
-		pointer:  res[0],
+		pointer:  filePointer,
 		instance: i,
 		closeFunc: func(ctx context.Context) error {
-			_, err := i.internalInstance.Module.ExportedFunction("TIFFClose").Call(ctx, res[0])
+			_, err := i.internalInstance.CallExportedFunction(ctx, "TIFFClose", filePointer)
 			if err != nil {
 				return err
 			}
@@ -389,7 +390,7 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 	}
 	defer cStringFileMode.Free(ctx)
 
-	TIFFOpenOptionsAlloc, err := i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsAlloc").Call(ctx)
+	TIFFOpenOptionsAlloc, err := i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsAlloc")
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
@@ -408,13 +409,13 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 			return err
 		}
 
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsFree").Call(ctx, TIFFOpenOptionsAllocPointer)
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsFree", TIFFOpenOptionsAllocPointer)
 		return err
 	}
 	cleanupFileReader = newCleanup
 
 	if options != nil && options.MaxSingleMemAlloc != nil {
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetMaxSingleMemAlloc").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxSingleMemAlloc))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetMaxSingleMemAlloc", TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxSingleMemAlloc))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -422,7 +423,7 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 	}
 
 	if options != nil && options.MaxCumulatedMemAlloc != nil {
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetMaxCumulatedMemAlloc").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxCumulatedMemAlloc))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetMaxCumulatedMemAlloc", TIFFOpenOptionsAllocPointer, api.EncodeI32(*options.MaxCumulatedMemAlloc))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -434,7 +435,7 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 		if *options.WarnAboutUnknownTags {
 			value = int32(1)
 		}
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetWarnAboutUnknownTags").Call(ctx, TIFFOpenOptionsAllocPointer, api.EncodeI32(value))
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetWarnAboutUnknownTags", TIFFOpenOptionsAllocPointer, api.EncodeI32(value))
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
@@ -443,21 +444,21 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 
 	if options != nil && options.WarnHandler != nil {
 		newFileReader.WarnHandler = options.WarnHandler
-		_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetWarningHandlerExtRGo").Call(ctx, TIFFOpenOptionsAllocPointer, paramPointer)
+		_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetWarningHandlerExtRGo", TIFFOpenOptionsAllocPointer, paramPointer)
 		if err != nil {
 			cleanupFileReader(ctx)
 			return nil, err
 		}
 	}
 
-	_, err = i.internalInstance.Module.ExportedFunction("TIFFOpenOptionsSetErrorHandlerExtRGo").Call(ctx, TIFFOpenOptionsAllocPointer, paramPointer)
+	_, err = i.internalInstance.CallExportedFunction(ctx, "TIFFOpenOptionsSetErrorHandlerExtRGo", TIFFOpenOptionsAllocPointer, paramPointer)
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
 	}
 
 	// Result is a pointer to struct_tiff.
-	res, err := i.internalInstance.Module.ExportedFunction("TIFFClientOpenExtGo").Call(ctx, cStringFileName.Pointer, cStringFileMode.Pointer, paramPointer, TIFFOpenOptionsAllocPointer)
+	res, err := i.internalInstance.CallExportedFunction(ctx, "TIFFClientOpenExtGo", cStringFileName.Pointer, cStringFileMode.Pointer, paramPointer, TIFFOpenOptionsAllocPointer)
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
@@ -474,12 +475,14 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 		return nil, errors.New("error while opening tiff file")
 	}
 
+	filePointer := res[0]
+
 	newFile := &File{
-		pointer:    res[0],
+		pointer:    filePointer,
 		readerFile: newFileReader,
 		instance:   i,
 		closeFunc: func(ctx context.Context) error {
-			_, err := i.internalInstance.Module.ExportedFunction("TIFFClose").Call(ctx, res[0])
+			_, err := i.internalInstance.CallExportedFunction(ctx, "TIFFClose", filePointer)
 			if err != nil {
 				return err
 			}

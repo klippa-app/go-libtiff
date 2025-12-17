@@ -108,6 +108,10 @@ More examples can be found in the [examples](https://github.com/klippa-app/go-li
 Since libtiff allows you to open multiple files at the same time and operate on them, you can re-use the instance
 for multiple files. This is more efficient than opening a new instance for every file.
 
+However, keep in mind that this does not mean it's multithreaded. Internally a lock is put around every call into
+the program to ensure thread safety. If you want to use multiple threads, you should  open a new instance for every
+thread, or create an object pool that handles this for you.
+
 ## libtiff tools
 
 You can use any of the libtiff tools by importing a tool package, for example:

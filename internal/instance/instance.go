@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 
 	"github.com/klippa-app/go-libtiff/internal/imports"
 	"github.com/tetratelabs/wazero"
@@ -34,6 +35,7 @@ type Instance struct {
 	Module         api.Module
 	config         wazero.ModuleConfig
 	compiledModule wazero.CompiledModule
+	callLock       sync.Mutex
 }
 
 func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
@@ -153,4 +155,10 @@ func (i *Instance) Close(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (i *Instance) CallExportedFunction(ctx context.Context, name string, args ...uint64) ([]uint64, error) {
+	i.callLock.Lock()
+	defer i.callLock.Unlock()
+	return i.Module.ExportedFunction(name).Call(ctx, args...)
 }

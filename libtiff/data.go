@@ -51,13 +51,13 @@ func (i *Instance) readCString(pointer uint32) string {
 }
 
 func (i *Instance) malloc(ctx context.Context, size uint64) (uint64, error) {
-	results, err := i.internalInstance.Module.ExportedFunction("malloc").Call(ctx, size)
+	results, err := i.internalInstance.CallExportedFunction(ctx, "malloc", size)
 	if err != nil {
 		return 0, err
 	}
 
 	pointer := results[0]
-	ok := i.internalInstance.Module.Memory().Write(uint32(results[0]), make([]byte, size))
+	ok := i.internalInstance.Module.Memory().Write(uint32(pointer), make([]byte, size))
 	if !ok {
 		return 0, errors.New("could not write nulls to memory")
 	}
@@ -66,7 +66,7 @@ func (i *Instance) malloc(ctx context.Context, size uint64) (uint64, error) {
 }
 
 func (i *Instance) free(ctx context.Context, pointer uint64) error {
-	_, err := i.internalInstance.Module.ExportedFunction("free").Call(ctx, pointer)
+	_, err := i.internalInstance.CallExportedFunction(ctx, "free", pointer)
 	if err != nil {
 		return err
 	}

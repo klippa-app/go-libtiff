@@ -30,7 +30,7 @@ func (f *File) TIFFGetFieldUint16_t(ctx context.Context, tag TIFFTAG) (uint16, e
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldUint16_t").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldUint16_t", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -56,7 +56,7 @@ func (f *File) TIFFGetFieldUint32_t(ctx context.Context, tag TIFFTAG) (uint32, e
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldUint32_t").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldUint32_t", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -82,7 +82,7 @@ func (f *File) TIFFGetFieldInt(ctx context.Context, tag TIFFTAG) (int, error) {
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldInt").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldInt", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -108,7 +108,7 @@ func (f *File) TIFFGetFieldFloat(ctx context.Context, tag TIFFTAG) (float32, err
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldFloat").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldFloat", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -134,7 +134,7 @@ func (f *File) TIFFGetFieldDouble(ctx context.Context, tag TIFFTAG) (float64, er
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldDouble").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldDouble", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return 0, err
 	}
@@ -160,7 +160,7 @@ func (f *File) TIFFGetFieldConstChar(ctx context.Context, tag TIFFTAG) (string, 
 	}
 	defer f.instance.free(ctx, valuePointer)
 
-	results, err := f.instance.internalInstance.Module.ExportedFunction("TIFFGetFieldConstChar").Call(ctx, f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldConstChar", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
 	if err != nil {
 		return "", err
 	}
