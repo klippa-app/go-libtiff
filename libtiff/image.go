@@ -53,6 +53,10 @@ func (f *File) ToGoImage(ctx context.Context) (image.Image, func(context.Context
 		return nil, nil, errors.Join(errors.New("error while converting tiff to RGBA"), cleanupErr)
 	}
 
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
 	// We directly open a view on the image data in the Wazero memory so that
 	// we don't have to do any image copying.
 	memoryView, ok := f.instance.internalInstance.Module.Memory().Read(uint32(imagePointer), uint32(nBytes))

@@ -185,11 +185,15 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 		return nil
 	}
 
+	// Prevent concurrent memory usage.
+	i.internalInstance.CallLock.Lock()
 	ok := i.internalInstance.Module.Memory().WriteUint32Le(uint32(paramPointer), fileReaderIndex)
 	if !ok {
+		i.internalInstance.CallLock.Unlock()
 		cleanupFileReader(ctx)
 		return nil, errors.New("could not write file reader param to memory")
 	}
+	i.internalInstance.CallLock.Unlock()
 
 	newFileReader := &imports.File{
 		ParamPointer: paramPointer,
@@ -347,11 +351,15 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 		return nil
 	}
 
+	// Prevent concurrent memory usage.
+	i.internalInstance.CallLock.Lock()
 	ok := i.internalInstance.Module.Memory().WriteUint32Le(uint32(paramPointer), fileReaderIndex)
 	if !ok {
+		i.internalInstance.CallLock.Unlock()
 		cleanupFileReader(ctx)
 		return nil, errors.New("could not write file reader param to memory")
 	}
+	i.internalInstance.CallLock.Unlock()
 
 	newFileReader := &imports.File{
 		ParamPointer: paramPointer,

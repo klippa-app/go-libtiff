@@ -41,6 +41,10 @@ func (f *File) TIFFGetFieldUint16_t(ctx context.Context, tag TIFFTAG) (uint16, e
 		}
 	}
 
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
 	readValue, success := f.instance.internalInstance.Module.Memory().ReadUint16Le(uint32(valuePointer))
 	if !success {
 		return 0, errors.New("could not read tag value")
@@ -66,6 +70,10 @@ func (f *File) TIFFGetFieldUint32_t(ctx context.Context, tag TIFFTAG) (uint32, e
 			Tag: tag,
 		}
 	}
+
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
 
 	readValue, success := f.instance.internalInstance.Module.Memory().ReadUint32Le(uint32(valuePointer))
 	if !success {
@@ -93,6 +101,10 @@ func (f *File) TIFFGetFieldInt(ctx context.Context, tag TIFFTAG) (int, error) {
 		}
 	}
 
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
 	readValue, success := f.instance.internalInstance.Module.Memory().ReadByte(uint32(valuePointer))
 	if !success {
 		return 0, errors.New("could not read tag value")
@@ -118,6 +130,10 @@ func (f *File) TIFFGetFieldFloat(ctx context.Context, tag TIFFTAG) (float32, err
 			Tag: tag,
 		}
 	}
+
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
 
 	readValue, success := f.instance.internalInstance.Module.Memory().ReadFloat32Le(uint32(valuePointer))
 	if !success {
@@ -145,6 +161,10 @@ func (f *File) TIFFGetFieldDouble(ctx context.Context, tag TIFFTAG) (float64, er
 		}
 	}
 
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
 	readValue, success := f.instance.internalInstance.Module.Memory().ReadFloat64Le(uint32(valuePointer))
 	if !success {
 		return 0, errors.New("could not read tag value")
@@ -171,10 +191,16 @@ func (f *File) TIFFGetFieldConstChar(ctx context.Context, tag TIFFTAG) (string, 
 		}
 	}
 
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+
 	readPointer, success := f.instance.internalInstance.Module.Memory().ReadUint32Le(uint32(valuePointer))
 	if !success {
+		f.instance.internalInstance.CallLock.Unlock()
 		return "", errors.New("could not read tag value")
 	}
+
+	f.instance.internalInstance.CallLock.Unlock()
 
 	readValue := f.instance.readCString(readPointer)
 

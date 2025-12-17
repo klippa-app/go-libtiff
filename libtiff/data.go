@@ -18,6 +18,10 @@ func (i *Instance) newCString(ctx context.Context, input string) (*cString, erro
 		return nil, err
 	}
 
+	// Prevent concurrent memory usage.
+	i.internalInstance.CallLock.Lock()
+	defer i.internalInstance.CallLock.Unlock()
+
 	// Write string + null terminator.
 	if !i.internalInstance.Module.Memory().Write(uint32(pointer), append([]byte(input), byte(0))) {
 		return nil, errors.New("could not write cString data")
@@ -32,6 +36,10 @@ func (i *Instance) newCString(ctx context.Context, input string) (*cString, erro
 }
 
 func (i *Instance) readCString(pointer uint32) string {
+	// Prevent concurrent memory usage.
+	i.internalInstance.CallLock.Lock()
+	defer i.internalInstance.CallLock.Unlock()
+
 	cStringData := []byte{}
 	for {
 		data, success := i.internalInstance.Module.Memory().Read(pointer, 1)
@@ -57,6 +65,11 @@ func (i *Instance) malloc(ctx context.Context, size uint64) (uint64, error) {
 	}
 
 	pointer := results[0]
+
+	// Prevent concurrent memory usage.
+	i.internalInstance.CallLock.Lock()
+	defer i.internalInstance.CallLock.Unlock()
+
 	ok := i.internalInstance.Module.Memory().Write(uint32(pointer), make([]byte, size))
 	if !ok {
 		return 0, errors.New("could not write nulls to memory")

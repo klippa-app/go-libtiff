@@ -35,7 +35,7 @@ type Instance struct {
 	Module         api.Module
 	config         wazero.ModuleConfig
 	compiledModule wazero.CompiledModule
-	callLock       sync.Mutex
+	CallLock       sync.Mutex
 }
 
 // This lock is needed because of a bug in Wazero where sometimes it would
@@ -175,7 +175,7 @@ func (i *Instance) Close(ctx context.Context) error {
 }
 
 func (i *Instance) CallExportedFunction(ctx context.Context, name string, args ...uint64) ([]uint64, error) {
-	i.callLock.Lock()
-	defer i.callLock.Unlock()
+	i.CallLock.Lock()
+	defer i.CallLock.Unlock()
 	return i.Module.ExportedFunction(name).Call(ctx, args...)
 }
