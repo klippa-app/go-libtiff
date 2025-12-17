@@ -3,6 +3,7 @@ package libtiff
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 type cString struct {
@@ -40,22 +41,22 @@ func (i *Instance) readCString(pointer uint32) string {
 	i.internalInstance.CallLock.Lock()
 	defer i.internalInstance.CallLock.Unlock()
 
-	cStringData := []byte{}
+	cStringData := strings.Builder{}
 	for {
 		data, success := i.internalInstance.Module.Memory().Read(pointer, 1)
 		if !success {
-			return string(cStringData)
+			return cStringData.String()
 		}
 
 		if data[0] == 0x00 {
 			break
 		}
 
-		cStringData = append(cStringData, data[0])
+		cStringData.WriteByte(data[0])
 		pointer++
 	}
 
-	return string(cStringData)
+	return cStringData.String()
 }
 
 func (i *Instance) malloc(ctx context.Context, size uint64) (uint64, error) {
