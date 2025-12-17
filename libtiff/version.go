@@ -3,7 +3,6 @@ package libtiff
 import (
 	"context"
 	"errors"
-	"log"
 )
 
 func (i *Instance) TIFFGetVersion(ctx context.Context) (string, error) {
@@ -17,7 +16,6 @@ func (i *Instance) TIFFGetVersion(ctx context.Context) (string, error) {
 	}
 
 	stringPointer := results[0]
-	log.Println(stringPointer)
 	readValue := i.readCString(uint32(stringPointer))
 
 	return readValue, nil
