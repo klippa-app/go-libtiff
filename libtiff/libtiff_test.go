@@ -25,8 +25,10 @@ var _ = BeforeSuite(func() {
 	err := os.Setenv("TZ", "UTC")
 	Expect(err).To(BeNil())
 
+	cache := wazero.NewCompilationCache()
 	instance, err = libtiff.GetInstance(context.Background(), &libtiff.Config{
-		FSConfig: wazero.NewFSConfig().WithDirMount("../testdata", "/testdata"),
+		FSConfig:         wazero.NewFSConfig().WithDirMount("../testdata", "/testdata"),
+		CompilationCache: cache,
 	})
 	Expect(err).To(BeNil())
 })
