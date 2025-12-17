@@ -43,6 +43,15 @@ var _ = AfterSuite(func() {
 	Expect(imports.FileReaders.Refs).To(HaveLen(0))
 })
 
+var _ = Describe("libtiff", func() {
+	It("returns the version information", func() {
+		ctx := context.Background()
+		TIFFGetVersion, err := instance.TIFFGetVersion(ctx)
+		Expect(err).To(BeNil())
+		Expect(TIFFGetVersion).To(ContainSubstring("LIBTIFF, Version"))
+	})
+})
+
 var _ = Describe("files", func() {
 	Context("a normal tiff file", func() {
 		When("is opened with a file path", func() {
