@@ -38,12 +38,6 @@ type Instance struct {
 	CallLock       sync.Mutex
 }
 
-// This lock is needed because of a bug in Wazero where sometimes it would
-// return an error when you do multiple CompileModule calls at the same time
-// on the same WASM binary when using a shared compilation cache.
-// See: https://github.com/wazero/wazero/issues/2459
-var compilationLock = sync.Mutex{}
-
 func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 	if config == nil {
 		return nil, errors.New("config must be given")
@@ -61,20 +55,9 @@ func GetInstance(ctx context.Context, config *Config) (*Instance, error) {
 		return nil, fmt.Errorf("could not instantiate wasi_snapshot_preview1: %w", err)
 	}
 
-	if config.CompilationCache != nil {
-		compilationLock.Lock()
-	}
-
 	compiledModule, err := wazeroRuntime.CompileModule(ctx, config.WASMData)
 	if err != nil {
-		if config.CompilationCache != nil {
-			compilationLock.Unlock()
-		}
 		return nil, err
-	}
-
-	if config.CompilationCache != nil {
-		compilationLock.Unlock()
 	}
 
 	if _, err := imports.Instantiate(ctx, wazeroRuntime, compiledModule); err != nil {
