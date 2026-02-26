@@ -62,7 +62,7 @@ func main() {
 	ctx := context.Background()
 
 	availableBinaries := registry.List()
-	availableBinaries = append(availableBinaries, "tiff2img")
+	availableBinaries = append(availableBinaries, "tiff2img", "img2tiff")
 	incorrectStartArgument := func() {
 		log.Fatalf("You should minimally start the program with one of the following arguments: %s", strings.Join(availableBinaries, ", "))
 	}
@@ -75,6 +75,14 @@ func main() {
 
 	if os.Args[1] == "tiff2img" {
 		err := tiff2img()
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	if os.Args[1] == "img2tiff" {
+		err := img2tiff()
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -192,6 +200,89 @@ func tiff2img() error {
 	rootCmd.Flags().IntVarP(&quality, "quality", "", 95, "The quality to render the image in, only used for jpeg.")
 	rootCmd.Flags().StringVarP(&fileType, "file-type", "", "jpeg", "The file type to render in, jpeg or png")
 	rootCmd.Flags().BoolVarP(&progressive, "progressive", "", false, "Create progressive images, only used for jpeg.")
+
+	rootCmd.SetOut(os.Stdout)
+	return rootCmd.Execute()
+}
+
+func img2tiff() error {
+	var (
+		compression string
+	)
+
+	rootCmd := &cobra.Command{
+		Use:   "img2tiff [input] [output]",
+		Short: "A CLI tool to convert JPEG/PNG images to TIFF",
+		Args: func(cmd *cobra.Command, args []string) error {
+			return cobra.ExactArgs(3)(cmd, args)
+		},
+		Run: func(cmd *cobra.Command, args []string) {
+			ctx := context.Background()
+			input := args[1]
+			output := args[2]
+
+			// Open and decode the input image.
+			inputFile, err := os.Open(input)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer inputFile.Close()
+
+			// Register decoders.
+			_ = jpeg.Decode
+			_ = png.Decode
+
+			img, _, err := image.Decode(inputFile)
+			if err != nil {
+				log.Fatal(fmt.Errorf("could not decode input image: %w", err))
+			}
+
+			// Map compression string to TIFFTAG.
+			var comp libtiff.TIFFTAG
+			switch strings.ToLower(compression) {
+			case "none":
+				comp = libtiff.COMPRESSION_NONE
+			case "lzw":
+				comp = libtiff.COMPRESSION_LZW
+			case "deflate":
+				comp = libtiff.COMPRESSION_DEFLATE
+			default:
+				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, or deflate)", compression))
+			}
+
+			instance, err := libtiff.GetInstance(ctx, &libtiff.Config{
+				CompilationCache: compilationCache,
+			})
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer instance.Close(ctx)
+
+			// Create the output file.
+			outputFile, err := os.Create(output)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer outputFile.Close()
+
+			tiffFile, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, path.Base(output), outputFile, 0, nil)
+			if err != nil {
+				log.Fatal(fmt.Errorf("could not open tiff file for writing: %w", err))
+			}
+			defer tiffFile.Close(ctx)
+
+			err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
+				Compression: comp,
+			})
+			if err != nil {
+				log.Fatal(fmt.Errorf("could not write image to tiff: %w", err))
+			}
+
+			log.Printf("Created TIFF file %s", output)
+		},
+	}
+
+	rootCmd.Flags().StringVarP(&compression, "compression", "", "none", "Compression type: none, lzw, or deflate")
 
 	rootCmd.SetOut(os.Stdout)
 	return rootCmd.Execute()

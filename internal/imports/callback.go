@@ -13,11 +13,11 @@ import (
 )
 
 type File struct {
-	ParamPointer uint64
-	FileSize     uint64
-	Reader       io.ReadSeeker
-	Error        error
-	WarnHandler  func(module string, message string)
+	ParamPointer    uint64
+	FileSize        uint64
+	ReadWriteSeeker io.ReadWriteSeeker
+	Error           error
+	WarnHandler     func(module string, message string)
 }
 
 func (f *File) GetError() error {
@@ -42,10 +42,10 @@ var FileReaders = struct {
 	Mutex:   &sync.RWMutex{},
 }
 
-type TIFFReadWriteProcGoCB struct {
+type TIFFReadProcGoCB struct {
 }
 
-func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
+func (cb TIFFReadProcGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
 	paramPointer := uint32(stack[0])
 	pBufPointer := uint32(stack[1])
 	size := uint32(stack[2])
@@ -68,7 +68,7 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 
 	// Read the requested data into a buffer.
 	readBuffer := make([]byte, size)
-	n, err := openFile.Reader.Read(readBuffer)
+	n, err := openFile.ReadWriteSeeker.Read(readBuffer)
 
 	// Clear out the error if we have EOF but read the requested size.
 	// This is to handle some edge case clients that return EOF as err when
@@ -79,7 +79,7 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 
 	if n == 0 || err != nil {
 		if err != nil && openFile.WarnHandler != nil {
-			openFile.WarnHandler("TIFFReadWriteProcGoCB", fmt.Sprintf("Read %d (requested %d) bytes with err: %v", n, size, err))
+			openFile.WarnHandler("TIFFReadProcGoCB", fmt.Sprintf("Read %d (requested %d) bytes with err: %v", n, size, err))
 		}
 		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
 		return
@@ -88,9 +88,56 @@ func (cb TIFFReadWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack 
 	ok = mem.Write(pBufPointer, readBuffer)
 	if !ok {
 		if openFile.WarnHandler != nil {
-			openFile.WarnHandler("TIFFReadWriteProcGoCB", fmt.Sprintf("Could not write memory at %d", pBufPointer))
+			openFile.WarnHandler("TIFFReadProcGoCB", fmt.Sprintf("Could not write memory at %d", pBufPointer))
 		}
 		stack[0] = uint64(0) // Should we return -1 like libtiff here? How does that work with uint?
+		return
+	}
+
+	stack[0] = uint64(n)
+	return
+}
+
+type TIFFWriteProcGoCB struct {
+}
+
+func (cb TIFFWriteProcGoCB) Call(ctx context.Context, mod api.Module, stack []uint64) {
+	paramPointer := uint32(stack[0])
+	pBufPointer := uint32(stack[1])
+	size := uint32(stack[2])
+
+	mem := mod.Memory()
+	param, ok := mem.ReadUint32Le(paramPointer)
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	// Check if we have the file referenced in param.
+	FileReaders.Mutex.RLock()
+	openFile, ok := FileReaders.Refs[param]
+	FileReaders.Mutex.RUnlock()
+	if !ok {
+		stack[0] = uint64(0)
+		return
+	}
+
+	// Read the data from WASM memory.
+	data, ok := mem.Read(pBufPointer, size)
+	if !ok {
+		if openFile.WarnHandler != nil {
+			openFile.WarnHandler("TIFFWriteProcGoCB", fmt.Sprintf("Could not read memory at %d", pBufPointer))
+		}
+		stack[0] = uint64(0)
+		return
+	}
+
+	n, err := openFile.ReadWriteSeeker.Write(data)
+	if err != nil {
+		if openFile.WarnHandler != nil {
+			openFile.WarnHandler("TIFFWriteProcGoCB", fmt.Sprintf("Write %d (requested %d) bytes with err: %v", n, size, err))
+		}
+		stack[0] = uint64(0)
 		return
 	}
 
@@ -122,7 +169,7 @@ func (cb TIFFSeekProcGoCB) Call(ctx context.Context, mod api.Module, stack []uin
 		return
 	}
 
-	newOffset, err := openFile.Reader.Seek(int64(offset), int(whence))
+	newOffset, err := openFile.ReadWriteSeeker.Seek(int64(offset), int(whence))
 	if err != nil {
 		if openFile.WarnHandler != nil {
 			openFile.WarnHandler("TIFFSeekProcGoCB", fmt.Sprintf("Could not seek to %d with whence %d: %v", offset, whence, err))

@@ -326,13 +326,33 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	}, nil
 }
 
-// TIFFOpenFileFromReader can open a TIFF file from a reader.
+type fakeReadWriteSeeker struct {
+	io.ReadSeeker
+}
+
+func (*fakeReadWriteSeeker) Write(p []byte) (n int, err error) {
+	return 0, errors.New("the given reader can't be written to")
+}
+
+// TIFFOpenFileFromReader can open a TIFF file from a ReadSeeker.
 // The filename property is for meaningful errors/warning and the TIFFFileName
 // method, it's not required to enter the actual filename.
 // The fileSize is for some validation checks and memory allocation limits, the
 // fileSize is not absolutely required, but the file might not always be opened
 // correctly if the fileSize is not given.
 func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, reader io.ReadSeeker, fileSize uint64, options *OpenOptions) (*File, error) {
+	return i.TIFFOpenFileFromReadWriteSeeker(ctx, filename, &fakeReadWriteSeeker{
+		ReadSeeker: reader,
+	}, fileSize, options)
+}
+
+// TIFFOpenFileFromReadWriteSeeker can open a TIFF file from a ReadWriteSeeker.
+// The filename property is for meaningful errors/warning and the TIFFFileName
+// method, it's not required to enter the actual filename.
+// The fileSize is for some validation checks and memory allocation limits, the
+// fileSize is not absolutely required, but the file might not always be opened
+// correctly if the fileSize is not given.
+func (i *Instance) TIFFOpenFileFromReadWriteSeeker(ctx context.Context, filename string, readWriteSeeker io.ReadWriteSeeker, fileSize uint64, options *OpenOptions) (*File, error) {
 	imports.FileReaders.Mutex.Lock()
 	fileReaderIndex := imports.FileReaders.Counter
 	imports.FileReaders.Counter++
@@ -362,9 +382,9 @@ func (i *Instance) TIFFOpenFileFromReader(ctx context.Context, filename string, 
 	i.internalInstance.CallLock.Unlock()
 
 	newFileReader := &imports.File{
-		ParamPointer: paramPointer,
-		FileSize:     fileSize,
-		Reader:       reader,
+		ParamPointer:    paramPointer,
+		FileSize:        fileSize,
+		ReadWriteSeeker: readWriteSeeker,
 	}
 
 	imports.FileReaders.Mutex.Lock()

@@ -44,7 +44,8 @@ type functionExporter struct{}
 
 // ExportFunctions implements FunctionExporter.ExportFunctions
 func (e *functionExporter) ExportFunctions(b wazero.HostModuleBuilder) {
-	b.NewFunctionBuilder().WithGoModuleFunction(TIFFReadWriteProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFReadWriteProcGoCB")
+	b.NewFunctionBuilder().WithGoModuleFunction(TIFFReadProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFReadProcGoCB")
+	b.NewFunctionBuilder().WithGoModuleFunction(TIFFWriteProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFWriteProcGoCB")
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFSeekProcGoCB{}, []api.ValueType{api.ValueTypeI32, api.ValueTypeI64, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("TIFFSeekProcGoCB")
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFCloseProcGoCB{}, []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("TIFFCloseProcGoCB")
 	b.NewFunctionBuilder().WithGoModuleFunction(TIFFSizeProcGoCB{}, []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("TIFFSizeProcGoCB")
