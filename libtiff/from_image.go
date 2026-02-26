@@ -8,6 +8,9 @@ import (
 
 type FromGoImageOptions struct {
 	Compression TIFFTAG
+	// Quality sets the compression quality level (1-100). Only used for JPEG
+	// compression. If 0, the default quality (75) is used.
+	Quality int
 }
 
 // FromGoImage writes a Go image to the open TIFF file.
@@ -22,6 +25,12 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 		compression = options.Compression
 	}
 
+	isJPEG := compression == COMPRESSION_JPEG
+	samplesPerPixel := uint16(4)
+	if isJPEG {
+		samplesPerPixel = 3 // JPEG does not support alpha channel.
+	}
+
 	// Set TIFF tags.
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGEWIDTH, width); err != nil {
 		return err
@@ -32,14 +41,34 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_BITSPERSAMPLE, 8); err != nil {
 		return err
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, 4); err != nil {
+	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel); err != nil {
 		return err
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_COMPRESSION, uint16(compression)); err != nil {
 		return err
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
-		return err
+	if isJPEG {
+		quality := 75
+		if options != nil && options.Quality > 0 {
+			quality = options.Quality
+		}
+		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGQUALITY, quality); err != nil {
+			return err
+		}
+		// JPEG in TIFF requires YCBCR photometric.
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_YCBCR)); err != nil {
+			return err
+		}
+		// Tell libtiff we provide RGB data and it should convert to YCbCr.
+		// Without this, libtiff expects raw subsampled YCbCr data and
+		// miscalculates the scanline size.
+		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGCOLORMODE, int(JPEGCOLORMODE_RGB)); err != nil {
+			return err
+		}
+	} else {
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
+			return err
+		}
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_ORIENTATION, uint16(ORIENTATION_TOPLEFT)); err != nil {
 		return err
@@ -48,26 +77,37 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 		return err
 	}
 
-	// Set EXTRASAMPLES to indicate the alpha channel is associated alpha.
-	if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_ASSOCALPHA)}); err != nil {
-		return err
+	if !isJPEG {
+		// Set EXTRASAMPLES to indicate the alpha channel is associated alpha.
+		if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_ASSOCALPHA)}); err != nil {
+			return err
+		}
 	}
 
 	// Get a sensible strip size.
-	rowsPerStrip, err := f.TIFFDefaultStripSize(ctx, 0)
-	if err != nil {
-		return err
+	var rowsPerStrip uint32
+	if isJPEG {
+		// JPEG requires writing the entire image as a single strip to avoid
+		// MCU boundary alignment issues with partial last strips.
+		rowsPerStrip = height
+	} else {
+		var err error
+		rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
+		if err != nil {
+			return err
+		}
 	}
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_ROWSPERSTRIP, rowsPerStrip); err != nil {
 		return err
 	}
 
 	// Write image data strip by strip.
-	bytesPerRow := int(width) * 4
+	bytesPerPixel := int(samplesPerPixel)
+	bytesPerRow := int(width) * bytesPerPixel
 	strip := uint32(0)
 
 	// Optimization: use direct pixel access for *image.RGBA.
-	if rgbaImg, ok := img.(*image.RGBA); ok {
+	if rgbaImg, ok := img.(*image.RGBA); ok && !isJPEG {
 		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
 			rows := int(rowsPerStrip)
 			if y+rows > bounds.Max.Y {
@@ -102,11 +142,13 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 			for row := 0; row < rows; row++ {
 				for x := bounds.Min.X; x < bounds.Max.X; x++ {
 					r, g, b, a := img.At(x, y+row).RGBA()
-					offset := row*bytesPerRow + (x-bounds.Min.X)*4
+					offset := row*bytesPerRow + (x-bounds.Min.X)*bytesPerPixel
 					stripData[offset] = uint8(r >> 8)
 					stripData[offset+1] = uint8(g >> 8)
 					stripData[offset+2] = uint8(b >> 8)
-					stripData[offset+3] = uint8(a >> 8)
+					if !isJPEG {
+						stripData[offset+3] = uint8(a >> 8)
+					}
 				}
 			}
 
@@ -137,6 +179,12 @@ func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *F
 		compression = options.Compression
 	}
 
+	isJPEG := compression == COMPRESSION_JPEG
+	samplesPerPixel := uint16(4)
+	if isJPEG {
+		samplesPerPixel = 3 // JPEG does not support alpha channel.
+	}
+
 	// Set TIFF tags.
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGEWIDTH, width); err != nil {
 		return err
@@ -147,14 +195,34 @@ func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *F
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_BITSPERSAMPLE, 8); err != nil {
 		return err
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, 4); err != nil {
+	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel); err != nil {
 		return err
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_COMPRESSION, uint16(compression)); err != nil {
 		return err
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
-		return err
+	if isJPEG {
+		quality := 75
+		if options != nil && options.Quality > 0 {
+			quality = options.Quality
+		}
+		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGQUALITY, quality); err != nil {
+			return err
+		}
+		// JPEG in TIFF requires YCBCR photometric.
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_YCBCR)); err != nil {
+			return err
+		}
+		// Tell libtiff we provide RGB data and it should convert to YCbCr.
+		// Without this, libtiff expects raw subsampled YCbCr data and
+		// miscalculates the scanline size.
+		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGCOLORMODE, int(JPEGCOLORMODE_RGB)); err != nil {
+			return err
+		}
+	} else {
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
+			return err
+		}
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_ORIENTATION, uint16(ORIENTATION_TOPLEFT)); err != nil {
 		return err
@@ -163,26 +231,37 @@ func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *F
 		return err
 	}
 
-	// Set EXTRASAMPLES to indicate the alpha channel is unassociated alpha.
-	if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_UNASSALPHA)}); err != nil {
-		return err
+	if !isJPEG {
+		// Set EXTRASAMPLES to indicate the alpha channel is unassociated alpha.
+		if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_UNASSALPHA)}); err != nil {
+			return err
+		}
 	}
 
 	// Get a sensible strip size.
-	rowsPerStrip, err := f.TIFFDefaultStripSize(ctx, 0)
-	if err != nil {
-		return err
+	var rowsPerStrip uint32
+	if isJPEG {
+		// JPEG requires writing the entire image as a single strip to avoid
+		// MCU boundary alignment issues with partial last strips.
+		rowsPerStrip = height
+	} else {
+		var err error
+		rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
+		if err != nil {
+			return err
+		}
 	}
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_ROWSPERSTRIP, rowsPerStrip); err != nil {
 		return err
 	}
 
 	// Write image data strip by strip using non-premultiplied alpha.
-	bytesPerRow := int(width) * 4
+	bytesPerPixel := int(samplesPerPixel)
+	bytesPerRow := int(width) * bytesPerPixel
 	strip := uint32(0)
 
 	// Optimization: use direct pixel access for *image.NRGBA.
-	if nrgbaImg, ok := img.(*image.NRGBA); ok {
+	if nrgbaImg, ok := img.(*image.NRGBA); ok && !isJPEG {
 		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
 			rows := int(rowsPerStrip)
 			if y+rows > bounds.Max.Y {
@@ -217,11 +296,13 @@ func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *F
 			for row := 0; row < rows; row++ {
 				for x := bounds.Min.X; x < bounds.Max.X; x++ {
 					c := color.NRGBAModel.Convert(img.At(x, y+row)).(color.NRGBA)
-					offset := row*bytesPerRow + (x-bounds.Min.X)*4
+					offset := row*bytesPerRow + (x-bounds.Min.X)*bytesPerPixel
 					stripData[offset] = c.R
 					stripData[offset+1] = c.G
 					stripData[offset+2] = c.B
-					stripData[offset+3] = c.A
+					if !isJPEG {
+						stripData[offset+3] = c.A
+					}
 				}
 			}
 

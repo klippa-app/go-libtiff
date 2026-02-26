@@ -208,6 +208,7 @@ func tiff2img() error {
 func img2tiff() error {
 	var (
 		compression string
+		quality     int
 		append      bool
 	)
 
@@ -236,8 +237,10 @@ func img2tiff() error {
 				comp = libtiff.COMPRESSION_LZW
 			case "deflate":
 				comp = libtiff.COMPRESSION_ADOBE_DEFLATE
+			case "jpeg":
+				comp = libtiff.COMPRESSION_JPEG
 			default:
-				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, or deflate)", compression))
+				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, deflate, or jpeg)", compression))
 			}
 
 			instance, err := libtiff.GetInstance(ctx, &libtiff.Config{
@@ -288,6 +291,7 @@ func img2tiff() error {
 
 				err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
 					Compression: comp,
+					Quality:     quality,
 				})
 				if err != nil {
 					log.Fatal(fmt.Errorf("could not write image %s to tiff: %w", input, err))
@@ -304,7 +308,8 @@ func img2tiff() error {
 		},
 	}
 
-	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, or deflate")
+	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, deflate, or jpeg")
+	rootCmd.Flags().IntVarP(&quality, "quality", "", 75, "JPEG compression quality (1-100), only used with --compression jpeg")
 	rootCmd.Flags().BoolVarP(&append, "append", "", false, "Append to an existing TIFF file instead of creating a new one")
 
 	rootCmd.SetOut(os.Stdout)
