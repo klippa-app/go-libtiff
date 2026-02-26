@@ -208,34 +208,24 @@ func tiff2img() error {
 func img2tiff() error {
 	var (
 		compression string
+		append      bool
 	)
 
 	rootCmd := &cobra.Command{
-		Use:   "img2tiff [input] [output]",
+		Use:   "img2tiff [input...] [output]",
 		Short: "A CLI tool to convert JPEG/PNG images to TIFF",
 		Args: func(cmd *cobra.Command, args []string) error {
-			return cobra.ExactArgs(3)(cmd, args)
+			// args[0] is the command name, need at least 1 input + 1 output.
+			return cobra.MinimumNArgs(3)(cmd, args)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			ctx := context.Background()
-			input := args[1]
-			output := args[2]
-
-			// Open and decode the input image.
-			inputFile, err := os.Open(input)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer inputFile.Close()
+			inputs := args[1 : len(args)-1]
+			output := args[len(args)-1]
 
 			// Register decoders.
 			_ = jpeg.Decode
 			_ = png.Decode
-
-			img, _, err := image.Decode(inputFile)
-			if err != nil {
-				log.Fatal(fmt.Errorf("could not decode input image: %w", err))
-			}
 
 			// Map compression string to TIFFTAG.
 			var comp libtiff.TIFFTAG
@@ -245,7 +235,7 @@ func img2tiff() error {
 			case "lzw":
 				comp = libtiff.COMPRESSION_LZW
 			case "deflate":
-				comp = libtiff.COMPRESSION_DEFLATE
+				comp = libtiff.COMPRESSION_ADOBE_DEFLATE
 			default:
 				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, or deflate)", compression))
 			}
@@ -258,14 +248,23 @@ func img2tiff() error {
 			}
 			defer instance.Close(ctx)
 
-			// Create the output file.
-			outputFile, err := os.Create(output)
-			if err != nil {
-				log.Fatal(err)
+			// Open or create the output file.
+			var outputFile *os.File
+			var fileMode string
+			if append {
+				outputFile, err = os.OpenFile(output, os.O_RDWR, 0)
+				if err != nil {
+					log.Fatal(fmt.Errorf("could not open existing tiff file for appending: %w", err))
+				}
+				fileMode = "a"
+			} else {
+				outputFile, err = os.Create(output)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fileMode = "w"
 			}
 			defer outputFile.Close()
-
-			fileMode := "w"
 			tiffFile, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, path.Base(output), outputFile, 0, &libtiff.OpenOptions{
 				FileMode: &fileMode,
 			})
@@ -274,18 +273,39 @@ func img2tiff() error {
 			}
 			defer tiffFile.Close(ctx)
 
-			err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
-				Compression: comp,
-			})
-			if err != nil {
-				log.Fatal(fmt.Errorf("could not write image to tiff: %w", err))
+			for i, input := range inputs {
+				// Open and decode the input image.
+				inputFile, err := os.Open(input)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				img, _, err := image.Decode(inputFile)
+				inputFile.Close()
+				if err != nil {
+					log.Fatal(fmt.Errorf("could not decode input image %s: %w", input, err))
+				}
+
+				err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
+					Compression: comp,
+				})
+				if err != nil {
+					log.Fatal(fmt.Errorf("could not write image %s to tiff: %w", input, err))
+				}
+
+				log.Printf("Written image %d/%d: %s", i+1, len(inputs), input)
 			}
 
-			log.Printf("Created TIFF file %s", output)
+			if append {
+				log.Printf("Appended %d image(s) to TIFF file %s", len(inputs), output)
+			} else {
+				log.Printf("Created TIFF file %s with %d image(s)", output, len(inputs))
+			}
 		},
 	}
 
-	rootCmd.Flags().StringVarP(&compression, "compression", "", "none", "Compression type: none, lzw, or deflate")
+	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, or deflate")
+	rootCmd.Flags().BoolVarP(&append, "append", "", false, "Append to an existing TIFF file instead of creating a new one")
 
 	rootCmd.SetOut(os.Stdout)
 	return rootCmd.Execute()
