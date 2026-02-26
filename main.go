@@ -265,7 +265,10 @@ func img2tiff() error {
 			}
 			defer outputFile.Close()
 
-			tiffFile, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, path.Base(output), outputFile, 0, nil)
+			fileMode := "w"
+			tiffFile, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, path.Base(output), outputFile, 0, &libtiff.OpenOptions{
+				FileMode: &fileMode,
+			})
 			if err != nil {
 				log.Fatal(fmt.Errorf("could not open tiff file for writing: %w", err))
 			}

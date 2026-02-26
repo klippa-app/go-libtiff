@@ -162,6 +162,7 @@ type OpenOptions struct {
 	MaxCumulatedMemAlloc *int32
 	WarnHandler          func(module string, message string)
 	WarnAboutUnknownTags *bool
+	FileMode             *string
 }
 
 // TIFFOpenFileFromPath opens a file from a path. Be aware that this is limited to the
@@ -222,7 +223,12 @@ func (i *Instance) TIFFOpenFileFromPath(ctx context.Context, filePath string, op
 	}
 	defer cStringFilePath.Free(ctx)
 
-	cStringFileMode, err := i.newCString(ctx, "r")
+	fileMode := "r"
+	if options != nil && options.FileMode != nil && *options.FileMode != "" {
+		fileMode = *options.FileMode
+	}
+
+	cStringFileMode, err := i.newCString(ctx, fileMode)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +417,12 @@ func (i *Instance) TIFFOpenFileFromReadWriteSeeker(ctx context.Context, filename
 	}
 	defer cStringFileName.Free(ctx)
 
-	cStringFileMode, err := i.newCString(ctx, "r")
+	fileMode := "r"
+	if options != nil && options.FileMode != nil && *options.FileMode != "" {
+		fileMode = *options.FileMode
+	}
+
+	cStringFileMode, err := i.newCString(ctx, fileMode)
 	if err != nil {
 		cleanupFileReader(ctx)
 		return nil, err
