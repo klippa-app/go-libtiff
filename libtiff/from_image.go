@@ -6,11 +6,26 @@ import (
 	"image/color"
 )
 
+// AlphaMode controls how the alpha channel is stored in the TIFF file.
+type AlphaMode int
+
+const (
+	// AlphaAuto auto-detects: *image.NRGBA uses unassociated, everything else uses associated.
+	AlphaAuto AlphaMode = iota
+	// AlphaAssociated stores premultiplied (associated) alpha.
+	AlphaAssociated
+	// AlphaUnassociated stores non-premultiplied (unassociated) alpha.
+	AlphaUnassociated
+)
+
 type FromGoImageOptions struct {
 	Compression TIFFTAG
 	// Quality sets the compression quality level (1-100). Only used for JPEG
 	// compression. If 0, the default quality (75) is used.
 	Quality int
+	// AlphaMode controls premultiplied vs non-premultiplied alpha storage.
+	// Zero value (AlphaAuto) auto-detects based on image type.
+	AlphaMode AlphaMode
 }
 
 // FromGoImage writes a Go image to the open TIFF file.
@@ -23,6 +38,19 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	compression := COMPRESSION_NONE
 	if options != nil && options.Compression != 0 {
 		compression = options.Compression
+	}
+
+	// Determine alpha mode.
+	alphaMode := AlphaAuto
+	if options != nil {
+		alphaMode = options.AlphaMode
+	}
+	if alphaMode == AlphaAuto {
+		if _, ok := img.(*image.NRGBA); ok {
+			alphaMode = AlphaUnassociated
+		} else {
+			alphaMode = AlphaAssociated
+		}
 	}
 
 	isJPEG := compression == COMPRESSION_JPEG
@@ -78,8 +106,11 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	}
 
 	if !isJPEG {
-		// Set EXTRASAMPLES to indicate the alpha channel is associated alpha.
-		if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_ASSOCALPHA)}); err != nil {
+		extraSample := EXTRASAMPLE_ASSOCALPHA
+		if alphaMode == AlphaUnassociated {
+			extraSample = EXTRASAMPLE_UNASSALPHA
+		}
+		if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(extraSample)}); err != nil {
 			return err
 		}
 	}
@@ -106,193 +137,29 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	bytesPerRow := int(width) * bytesPerPixel
 	strip := uint32(0)
 
-	// Optimization: use direct pixel access for *image.RGBA.
-	if rgbaImg, ok := img.(*image.RGBA); ok && !isJPEG {
-		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
-			rows := int(rowsPerStrip)
-			if y+rows > bounds.Max.Y {
-				rows = bounds.Max.Y - y
-			}
-
-			stripSize := rows * bytesPerRow
-			stripData := make([]byte, stripSize)
-
+	// Fast path: direct pixel access for matching image types (non-JPEG only).
+	if rgbaImg, ok := img.(*image.RGBA); ok && !isJPEG && alphaMode == AlphaAssociated {
+		return f.writeStrips(ctx, bounds, rowsPerStrip, bytesPerRow, &strip, func(stripData []byte, y, rows int) {
 			for row := 0; row < rows; row++ {
 				srcY := y + row - bounds.Min.Y
 				srcStart := srcY*rgbaImg.Stride + (bounds.Min.X * 4)
 				copy(stripData[row*bytesPerRow:], rgbaImg.Pix[srcStart:srcStart+bytesPerRow])
 			}
-
-			if err := f.TIFFWriteEncodedStrip(ctx, strip, stripData); err != nil {
-				return err
-			}
-			strip++
-		}
-	} else {
-		// Generic path: use At() for any image type.
-		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
-			rows := int(rowsPerStrip)
-			if y+rows > bounds.Max.Y {
-				rows = bounds.Max.Y - y
-			}
-
-			stripSize := rows * bytesPerRow
-			stripData := make([]byte, stripSize)
-
-			for row := 0; row < rows; row++ {
-				for x := bounds.Min.X; x < bounds.Max.X; x++ {
-					r, g, b, a := img.At(x, y+row).RGBA()
-					offset := row*bytesPerRow + (x-bounds.Min.X)*bytesPerPixel
-					stripData[offset] = uint8(r >> 8)
-					stripData[offset+1] = uint8(g >> 8)
-					stripData[offset+2] = uint8(b >> 8)
-					if !isJPEG {
-						stripData[offset+3] = uint8(a >> 8)
-					}
-				}
-			}
-
-			if err := f.TIFFWriteEncodedStrip(ctx, strip, stripData); err != nil {
-				return err
-			}
-			strip++
-		}
+		})
 	}
-
-	// Write the directory.
-	if err := f.TIFFWriteDirectory(ctx); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// FromGoImageNRGBA writes a Go image to the open TIFF file using unassociated alpha.
-// Use this when the source image has non-premultiplied alpha (e.g. *image.NRGBA).
-func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *FromGoImageOptions) error {
-	bounds := img.Bounds()
-	width := uint32(bounds.Dx())
-	height := uint32(bounds.Dy())
-
-	compression := COMPRESSION_NONE
-	if options != nil && options.Compression != 0 {
-		compression = options.Compression
-	}
-
-	isJPEG := compression == COMPRESSION_JPEG
-	samplesPerPixel := uint16(4)
-	if isJPEG {
-		samplesPerPixel = 3 // JPEG does not support alpha channel.
-	}
-
-	// Set TIFF tags.
-	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGEWIDTH, width); err != nil {
-		return err
-	}
-	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGELENGTH, height); err != nil {
-		return err
-	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_BITSPERSAMPLE, 8); err != nil {
-		return err
-	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel); err != nil {
-		return err
-	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_COMPRESSION, uint16(compression)); err != nil {
-		return err
-	}
-	if isJPEG {
-		quality := 75
-		if options != nil && options.Quality > 0 {
-			quality = options.Quality
-		}
-		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGQUALITY, quality); err != nil {
-			return err
-		}
-		// JPEG in TIFF requires YCBCR photometric.
-		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_YCBCR)); err != nil {
-			return err
-		}
-		// Tell libtiff we provide RGB data and it should convert to YCbCr.
-		// Without this, libtiff expects raw subsampled YCbCr data and
-		// miscalculates the scanline size.
-		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGCOLORMODE, int(JPEGCOLORMODE_RGB)); err != nil {
-			return err
-		}
-	} else {
-		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
-			return err
-		}
-	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_ORIENTATION, uint16(ORIENTATION_TOPLEFT)); err != nil {
-		return err
-	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PLANARCONFIG, uint16(PLANARCONFIG_CONTIG)); err != nil {
-		return err
-	}
-
-	if !isJPEG {
-		// Set EXTRASAMPLES to indicate the alpha channel is unassociated alpha.
-		if err := f.TIFFSetFieldExtraSamples(ctx, []uint16{uint16(EXTRASAMPLE_UNASSALPHA)}); err != nil {
-			return err
-		}
-	}
-
-	// Get a sensible strip size.
-	var rowsPerStrip uint32
-	if isJPEG {
-		// JPEG requires writing the entire image as a single strip to avoid
-		// MCU boundary alignment issues with partial last strips.
-		rowsPerStrip = height
-	} else {
-		var err error
-		rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
-		if err != nil {
-			return err
-		}
-	}
-	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_ROWSPERSTRIP, rowsPerStrip); err != nil {
-		return err
-	}
-
-	// Write image data strip by strip using non-premultiplied alpha.
-	bytesPerPixel := int(samplesPerPixel)
-	bytesPerRow := int(width) * bytesPerPixel
-	strip := uint32(0)
-
-	// Optimization: use direct pixel access for *image.NRGBA.
-	if nrgbaImg, ok := img.(*image.NRGBA); ok && !isJPEG {
-		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
-			rows := int(rowsPerStrip)
-			if y+rows > bounds.Max.Y {
-				rows = bounds.Max.Y - y
-			}
-
-			stripSize := rows * bytesPerRow
-			stripData := make([]byte, stripSize)
-
+	if nrgbaImg, ok := img.(*image.NRGBA); ok && !isJPEG && alphaMode == AlphaUnassociated {
+		return f.writeStrips(ctx, bounds, rowsPerStrip, bytesPerRow, &strip, func(stripData []byte, y, rows int) {
 			for row := 0; row < rows; row++ {
 				srcY := y + row - bounds.Min.Y
 				srcStart := srcY*nrgbaImg.Stride + (bounds.Min.X * 4)
 				copy(stripData[row*bytesPerRow:], nrgbaImg.Pix[srcStart:srcStart+bytesPerRow])
 			}
+		})
+	}
 
-			if err := f.TIFFWriteEncodedStrip(ctx, strip, stripData); err != nil {
-				return err
-			}
-			strip++
-		}
-	} else {
-		// Generic path: convert to NRGBA using color model.
-		for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
-			rows := int(rowsPerStrip)
-			if y+rows > bounds.Max.Y {
-				rows = bounds.Max.Y - y
-			}
-
-			stripSize := rows * bytesPerRow
-			stripData := make([]byte, stripSize)
-
+	// Generic path.
+	if alphaMode == AlphaUnassociated {
+		return f.writeStrips(ctx, bounds, rowsPerStrip, bytesPerRow, &strip, func(stripData []byte, y, rows int) {
 			for row := 0; row < rows; row++ {
 				for x := bounds.Min.X; x < bounds.Max.X; x++ {
 					c := color.NRGBAModel.Convert(img.At(x, y+row)).(color.NRGBA)
@@ -305,18 +172,42 @@ func (f *File) FromGoImageNRGBA(ctx context.Context, img image.Image, options *F
 					}
 				}
 			}
+		})
+	}
 
-			if err := f.TIFFWriteEncodedStrip(ctx, strip, stripData); err != nil {
-				return err
+	return f.writeStrips(ctx, bounds, rowsPerStrip, bytesPerRow, &strip, func(stripData []byte, y, rows int) {
+		for row := 0; row < rows; row++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				r, g, b, a := img.At(x, y+row).RGBA()
+				offset := row*bytesPerRow + (x-bounds.Min.X)*bytesPerPixel
+				stripData[offset] = uint8(r >> 8)
+				stripData[offset+1] = uint8(g >> 8)
+				stripData[offset+2] = uint8(b >> 8)
+				if !isJPEG {
+					stripData[offset+3] = uint8(a >> 8)
+				}
 			}
-			strip++
 		}
+	})
+}
+
+// writeStrips writes image data strip by strip, calling fillStrip to populate each strip's pixel data,
+// then writes the TIFF directory.
+func (f *File) writeStrips(ctx context.Context, bounds image.Rectangle, rowsPerStrip uint32, bytesPerRow int, strip *uint32, fillStrip func(stripData []byte, y, rows int)) error {
+	for y := bounds.Min.Y; y < bounds.Max.Y; y += int(rowsPerStrip) {
+		rows := int(rowsPerStrip)
+		if y+rows > bounds.Max.Y {
+			rows = bounds.Max.Y - y
+		}
+
+		stripData := make([]byte, rows*bytesPerRow)
+		fillStrip(stripData, y, rows)
+
+		if err := f.TIFFWriteEncodedStrip(ctx, *strip, stripData); err != nil {
+			return err
+		}
+		*strip++
 	}
 
-	// Write the directory.
-	if err := f.TIFFWriteDirectory(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return f.TIFFWriteDirectory(ctx)
 }
