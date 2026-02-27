@@ -207,12 +207,29 @@ func tiff2img() error {
 
 func img2tiff() error {
 	var (
-		compression string
-		quality     int
-		append      bool
-		software    string
-		dateTime    string
-		artist      string
+		compression    string
+		quality        int
+		append         bool
+		software       string
+		dateTime       string
+		artist         string
+		predictor      string
+		xResolution    float32
+		yResolution    float32
+		resolutionUnit string
+		description    string
+		copyright      string
+		documentName   string
+		pageName       string
+		hostComputer   string
+		make_          string
+		model          string
+		rowsPerStrip   uint32
+		orientation    string
+		tileWidth      uint32
+		tileHeight     uint32
+		pageNumber     uint16
+		totalPages     uint16
 	)
 
 	rootCmd := &cobra.Command{
@@ -242,8 +259,67 @@ func img2tiff() error {
 				comp = libtiff.COMPRESSION_ADOBE_DEFLATE
 			case "jpeg":
 				comp = libtiff.COMPRESSION_JPEG
+			case "packbits":
+				comp = libtiff.COMPRESSION_PACKBITS
+			case "ccitt3":
+				comp = libtiff.COMPRESSION_CCITTFAX3
+			case "ccitt4":
+				comp = libtiff.COMPRESSION_CCITTFAX4
 			default:
-				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, deflate, or jpeg)", compression))
+				log.Fatal(fmt.Errorf("unsupported compression: %s (use none, lzw, deflate, jpeg, packbits, ccitt3, or ccitt4)", compression))
+			}
+
+			// Map predictor string.
+			var pred libtiff.TIFFTAG
+			switch strings.ToLower(predictor) {
+			case "none", "":
+				// Don't set predictor.
+			case "horizontal":
+				pred = libtiff.PREDICTOR_HORIZONTAL
+			case "floatingpoint":
+				pred = libtiff.PREDICTOR_FLOATINGPOINT
+			default:
+				log.Fatal(fmt.Errorf("unsupported predictor: %s (use none, horizontal, or floatingpoint)", predictor))
+			}
+
+			// Map resolution unit string.
+			var resUnit libtiff.TIFFTAG
+			switch strings.ToLower(resolutionUnit) {
+			case "", "default":
+				// Don't set resolution unit.
+			case "none":
+				resUnit = libtiff.RESUNIT_NONE
+			case "inch":
+				resUnit = libtiff.RESUNIT_INCH
+			case "centimeter":
+				resUnit = libtiff.RESUNIT_CENTIMETER
+			default:
+				log.Fatal(fmt.Errorf("unsupported resolution unit: %s (use none, inch, or centimeter)", resolutionUnit))
+			}
+
+			// Map orientation string.
+			var orient libtiff.TIFFTAG
+			switch strings.ToLower(orientation) {
+			case "", "default":
+				// Don't set orientation (use default TOPLEFT).
+			case "topleft":
+				orient = libtiff.ORIENTATION_TOPLEFT
+			case "topright":
+				orient = libtiff.ORIENTATION_TOPRIGHT
+			case "botright":
+				orient = libtiff.ORIENTATION_BOTRIGHT
+			case "botleft":
+				orient = libtiff.ORIENTATION_BOTLEFT
+			case "lefttop":
+				orient = libtiff.ORIENTATION_LEFTTOP
+			case "righttop":
+				orient = libtiff.ORIENTATION_RIGHTTOP
+			case "rightbot":
+				orient = libtiff.ORIENTATION_RIGHTBOT
+			case "leftbot":
+				orient = libtiff.ORIENTATION_LEFTBOT
+			default:
+				log.Fatal(fmt.Errorf("unsupported orientation: %s (use topleft, topright, botright, botleft, lefttop, righttop, rightbot, or leftbot)", orientation))
 			}
 
 			instance, err := libtiff.GetInstance(ctx, &libtiff.Config{
@@ -293,11 +369,28 @@ func img2tiff() error {
 				}
 
 				err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
-					Compression: comp,
-					Quality:     quality,
-					Software:    software,
-					DateTime:    dateTime,
-					Artist:      artist,
+					Compression:    comp,
+					Quality:        quality,
+					Software:       software,
+					DateTime:       dateTime,
+					Artist:         artist,
+					Predictor:      pred,
+					XResolution:    xResolution,
+					YResolution:    yResolution,
+					ResolutionUnit: resUnit,
+					Description:    description,
+					Copyright:      copyright,
+					DocumentName:   documentName,
+					PageName:       pageName,
+					HostComputer:   hostComputer,
+					Make:           make_,
+					Model:          model,
+					RowsPerStrip:   rowsPerStrip,
+					Orientation:    orient,
+					TileWidth:      tileWidth,
+					TileHeight:     tileHeight,
+					PageNumber:     pageNumber,
+					TotalPages:     totalPages,
 				})
 				if err != nil {
 					log.Fatal(fmt.Errorf("could not write image %s to tiff: %w", input, err))
@@ -314,12 +407,29 @@ func img2tiff() error {
 		},
 	}
 
-	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, deflate, or jpeg")
+	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, deflate, jpeg, packbits, ccitt3, or ccitt4")
 	rootCmd.Flags().IntVarP(&quality, "quality", "", 75, "JPEG compression quality (1-100), only used with --compression jpeg")
 	rootCmd.Flags().BoolVarP(&append, "append", "", false, "Append to an existing TIFF file instead of creating a new one")
 	rootCmd.Flags().StringVarP(&software, "software", "", "", "TIFFTAG_SOFTWARE value (default: go-libtiff/libtiff-{version})")
 	rootCmd.Flags().StringVarP(&dateTime, "datetime", "", "", "TIFFTAG_DATETIME value in YYYY:MM:DD HH:MM:SS format (default: current time)")
 	rootCmd.Flags().StringVarP(&artist, "artist", "", "", "TIFFTAG_ARTIST value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&predictor, "predictor", "", "none", "Predictor: none, horizontal, or floatingpoint")
+	rootCmd.Flags().Float32VarP(&xResolution, "xresolution", "", 0, "X resolution (DPI)")
+	rootCmd.Flags().Float32VarP(&yResolution, "yresolution", "", 0, "Y resolution (DPI)")
+	rootCmd.Flags().StringVarP(&resolutionUnit, "resolution-unit", "", "", "Resolution unit: none, inch, or centimeter")
+	rootCmd.Flags().StringVarP(&description, "description", "", "", "TIFFTAG_IMAGEDESCRIPTION value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&copyright, "copyright", "", "", "TIFFTAG_COPYRIGHT value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&documentName, "document-name", "", "", "TIFFTAG_DOCUMENTNAME value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&pageName, "page-name", "", "", "TIFFTAG_PAGENAME value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&hostComputer, "host-computer", "", "", "TIFFTAG_HOSTCOMPUTER value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&make_, "make", "", "", "TIFFTAG_MAKE value (omitted if empty)")
+	rootCmd.Flags().StringVarP(&model, "model", "", "", "TIFFTAG_MODEL value (omitted if empty)")
+	rootCmd.Flags().Uint32VarP(&rowsPerStrip, "rows-per-strip", "", 0, "Rows per strip (0 = auto)")
+	rootCmd.Flags().StringVarP(&orientation, "orientation", "", "", "Orientation: topleft, topright, botright, botleft, lefttop, righttop, rightbot, or leftbot")
+	rootCmd.Flags().Uint32VarP(&tileWidth, "tile-width", "", 0, "Tile width (0 = strip-based)")
+	rootCmd.Flags().Uint32VarP(&tileHeight, "tile-height", "", 0, "Tile height (0 = strip-based)")
+	rootCmd.Flags().Uint16VarP(&pageNumber, "page-number", "", 0, "Page number (0-based) for TIFFTAG_PAGENUMBER")
+	rootCmd.Flags().Uint16VarP(&totalPages, "total-pages", "", 0, "Total pages for TIFFTAG_PAGENUMBER (tag is omitted if 0)")
 
 	rootCmd.SetOut(os.Stdout)
 	return rootCmd.Execute()

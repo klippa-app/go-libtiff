@@ -72,6 +72,19 @@ func (f *File) TIFFSetFieldDouble(ctx context.Context, tag TIFFTAG, val float64)
 	return nil
 }
 
+func (f *File) TIFFSetFieldTwoUint16(ctx context.Context, tag TIFFTAG, val1, val2 uint16) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFSetFieldTwoUint16", f.pointer, api.EncodeU32(uint32(tag)), api.EncodeU32(uint32(val1)), api.EncodeU32(uint32(val2)))
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("could not set tag value")
+	}
+
+	return nil
+}
+
 func (f *File) TIFFSetFieldString(ctx context.Context, tag TIFFTAG, val string) error {
 	cString, err := f.instance.newCString(ctx, val)
 	if err != nil {

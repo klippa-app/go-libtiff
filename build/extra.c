@@ -96,3 +96,13 @@ EMSCRIPTEN_KEEPALIVE
 int TIFFSetFieldExtraSamples(TIFF *tif, uint16_t count, uint16_t *types) {
   return TIFFSetField(tif, TIFFTAG_EXTRASAMPLES, count, types);
 }
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldTwoUint16(TIFF *tif, uint32_t tag, uint16_t val1, uint16_t val2) {
+  return TIFFSetField(tif, tag, val1, val2);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldTwoUint16(TIFF *tif, uint32_t tag, uint16_t *val1, uint16_t *val2) {
+  return TIFFGetField(tif, tag, val1, val2);
+}

@@ -67,6 +67,8 @@ EXPORTED_FUNCTIONS=(
   _TIFFSetFieldDouble
   _TIFFSetFieldString
   _TIFFSetFieldExtraSamples
+  _TIFFSetFieldTwoUint16
+  _TIFFGetFieldTwoUint16
 
   # Directory navigation
   _TIFFReadDirectory

@@ -2,6 +2,7 @@ package libtiff
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"strings"
@@ -36,6 +37,50 @@ type FromGoImageOptions struct {
 	DateTime string
 	// Artist sets the TIFFTAG_ARTIST tag. If empty, the tag is not written.
 	Artist string
+	// Predictor sets TIFFTAG_PREDICTOR. Only meaningful for LZW and Deflate.
+	// If 0, the tag is not set.
+	Predictor TIFFTAG
+	// XResolution sets TIFFTAG_XRESOLUTION. If <= 0, the tag is not set.
+	XResolution float32
+	// YResolution sets TIFFTAG_YRESOLUTION. If <= 0, the tag is not set.
+	YResolution float32
+	// ResolutionUnit sets TIFFTAG_RESOLUTIONUNIT. If 0, the tag is not set.
+	ResolutionUnit TIFFTAG
+	// Description sets TIFFTAG_IMAGEDESCRIPTION. If empty, the tag is not written.
+	Description string
+	// Copyright sets TIFFTAG_COPYRIGHT. If empty, the tag is not written.
+	Copyright string
+	// DocumentName sets TIFFTAG_DOCUMENTNAME. If empty, the tag is not written.
+	DocumentName string
+	// PageName sets TIFFTAG_PAGENAME. If empty, the tag is not written.
+	PageName string
+	// HostComputer sets TIFFTAG_HOSTCOMPUTER. If empty, the tag is not written.
+	HostComputer string
+	// Make sets TIFFTAG_MAKE. If empty, the tag is not written.
+	Make string
+	// Model sets TIFFTAG_MODEL. If empty, the tag is not written.
+	Model string
+	// RowsPerStrip overrides the default strip size. If 0, uses TIFFDefaultStripSize.
+	// Ignored for JPEG compression and tile-based output.
+	RowsPerStrip uint32
+	// Orientation sets TIFFTAG_ORIENTATION. If 0, defaults to ORIENTATION_TOPLEFT.
+	Orientation TIFFTAG
+	// TileWidth sets the tile width for tile-based output. Both TileWidth and
+	// TileHeight must be set to enable tiled output. If 0, strip-based output is used.
+	TileWidth uint32
+	// TileHeight sets the tile height for tile-based output. Both TileWidth and
+	// TileHeight must be set to enable tiled output. If 0, strip-based output is used.
+	TileHeight uint32
+	// BilevelThreshold sets the luminance threshold for CCITT bilevel conversion.
+	// Pixels with luminance >= threshold become white, below become black.
+	// If 0, defaults to 128.
+	BilevelThreshold uint8
+	// PageNumber sets TIFFTAG_PAGENUMBER. The first value is the page number
+	// (0-based), the second is the total number of pages. Both must be set
+	// (non-zero TotalPages) for the tag to be written.
+	PageNumber uint16
+	// TotalPages is the total number of pages for TIFFTAG_PAGENUMBER.
+	TotalPages uint16
 }
 
 // FromGoImage writes a Go image to the open TIFF file.
@@ -49,6 +94,17 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	if options != nil && options.Compression != 0 {
 		compression = options.Compression
 	}
+
+	// Validate tile options.
+	useTiles := false
+	if options != nil {
+		if (options.TileWidth > 0) != (options.TileHeight > 0) {
+			return fmt.Errorf("both TileWidth and TileHeight must be set for tile-based output")
+		}
+		useTiles = options.TileWidth > 0 && options.TileHeight > 0
+	}
+
+	isCCITT := compression == COMPRESSION_CCITTFAX3 || compression == COMPRESSION_CCITTFAX4
 
 	// Determine alpha mode.
 	alphaMode := AlphaAuto
@@ -68,6 +124,9 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	if isJPEG {
 		samplesPerPixel = 3 // JPEG does not support alpha channel.
 	}
+	if isCCITT {
+		samplesPerPixel = 1
+	}
 
 	// Set TIFF tags.
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGEWIDTH, width); err != nil {
@@ -76,7 +135,11 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_IMAGELENGTH, height); err != nil {
 		return err
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_BITSPERSAMPLE, 8); err != nil {
+	bitsPerSample := uint16(8)
+	if isCCITT {
+		bitsPerSample = 1
+	}
+	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_BITSPERSAMPLE, bitsPerSample); err != nil {
 		return err
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel); err != nil {
@@ -103,12 +166,34 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 		if err := f.TIFFSetFieldInt(ctx, TIFFTAG_JPEGCOLORMODE, int(JPEGCOLORMODE_RGB)); err != nil {
 			return err
 		}
+	} else if isCCITT {
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_MINISWHITE)); err != nil {
+			return err
+		}
+		if compression == COMPRESSION_CCITTFAX3 {
+			if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_GROUP3OPTIONS, uint32(GROUP3OPT_FILLBITS)); err != nil {
+				return err
+			}
+		}
 	} else {
 		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PHOTOMETRIC, uint16(PHOTOMETRIC_RGB)); err != nil {
 			return err
 		}
 	}
-	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_ORIENTATION, uint16(ORIENTATION_TOPLEFT)); err != nil {
+
+	// Set predictor if specified.
+	if options != nil && options.Predictor != 0 {
+		if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PREDICTOR, uint16(options.Predictor)); err != nil {
+			return err
+		}
+	}
+
+	// Set orientation.
+	orientation := ORIENTATION_TOPLEFT
+	if options != nil && options.Orientation != 0 {
+		orientation = options.Orientation
+	}
+	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_ORIENTATION, uint16(orientation)); err != nil {
 		return err
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PLANARCONFIG, uint16(PLANARCONFIG_CONTIG)); err != nil {
@@ -158,7 +243,56 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 		}
 	}
 
-	if !isJPEG {
+	// Write optional metadata tags.
+	if options != nil {
+		optionalStringTags := []struct {
+			value string
+			tag   TIFFTAG
+		}{
+			{options.Description, TIFFTAG_IMAGEDESCRIPTION},
+			{options.Copyright, TIFFTAG_COPYRIGHT},
+			{options.DocumentName, TIFFTAG_DOCUMENTNAME},
+			{options.PageName, TIFFTAG_PAGENAME},
+			{options.HostComputer, TIFFTAG_HOSTCOMPUTER},
+			{options.Make, TIFFTAG_MAKE},
+			{options.Model, TIFFTAG_MODEL},
+		}
+		for _, t := range optionalStringTags {
+			if t.value != "" {
+				if err := f.TIFFSetFieldString(ctx, t.tag, t.value); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Set page number tag.
+	if options != nil && options.TotalPages > 0 {
+		if err := f.TIFFSetFieldTwoUint16(ctx, TIFFTAG_PAGENUMBER, options.PageNumber, options.TotalPages); err != nil {
+			return err
+		}
+	}
+
+	// Set resolution tags.
+	if options != nil {
+		if options.XResolution > 0 {
+			if err := f.TIFFSetFieldFloat(ctx, TIFFTAG_XRESOLUTION, options.XResolution); err != nil {
+				return err
+			}
+		}
+		if options.YResolution > 0 {
+			if err := f.TIFFSetFieldFloat(ctx, TIFFTAG_YRESOLUTION, options.YResolution); err != nil {
+				return err
+			}
+		}
+		if options.ResolutionUnit != 0 {
+			if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_RESOLUTIONUNIT, uint16(options.ResolutionUnit)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if !isJPEG && !isCCITT {
 		extraSample := EXTRASAMPLE_ASSOCALPHA
 		if alphaMode == AlphaUnassociated {
 			extraSample = EXTRASAMPLE_UNASSALPHA
@@ -168,12 +302,204 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 		}
 	}
 
-	// Get a sensible strip size.
-	var rowsPerStrip uint32
+	// Set up tile or strip layout.
+	if useTiles {
+		tileWidth := options.TileWidth
+		tileHeight := options.TileHeight
+		if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_TILEWIDTH, tileWidth); err != nil {
+			return err
+		}
+		if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_TILELENGTH, tileHeight); err != nil {
+			return err
+		}
+	} else {
+		// Get a sensible strip size.
+		var rowsPerStrip uint32
+		if isJPEG {
+			// JPEG requires writing the entire image as a single strip to avoid
+			// MCU boundary alignment issues with partial last strips.
+			rowsPerStrip = height
+		} else if options != nil && options.RowsPerStrip > 0 {
+			rowsPerStrip = options.RowsPerStrip
+		} else {
+			var err error
+			rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
+			if err != nil {
+				return err
+			}
+		}
+		if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_ROWSPERSTRIP, rowsPerStrip); err != nil {
+			return err
+		}
+	}
+
+	// CCITT bilevel output.
+	if isCCITT {
+		threshold := uint8(128)
+		if options != nil && options.BilevelThreshold != 0 {
+			threshold = options.BilevelThreshold
+		}
+		bytesPerRow := (int(width) + 7) / 8
+
+		if useTiles {
+			return f.writeTiles(ctx, bounds, options.TileWidth, options.TileHeight, 0, func(tileData []byte, tileX, tileY, tw, th int) {
+				tileBytesPerRow := (tw + 7) / 8
+				for row := 0; row < th; row++ {
+					imgY := tileY + row
+					for col := 0; col < tw; col++ {
+						imgX := tileX + col
+						var lum uint8
+						if imgX < bounds.Max.X && imgY < bounds.Max.Y {
+							r, g, b, _ := img.At(imgX, imgY).RGBA()
+							lum = uint8((19595*r + 38470*g + 7471*b + 1<<15) >> 24)
+						}
+						byteIdx := row*tileBytesPerRow + col/8
+						bitIdx := uint(7 - col%8)
+						if lum < threshold {
+							tileData[byteIdx] |= 1 << bitIdx // black = 1 for MINISWHITE
+						}
+					}
+				}
+			})
+		}
+
+		strip := uint32(0)
+		rowsPerStrip := uint32(0)
+		if options != nil && options.RowsPerStrip > 0 {
+			rowsPerStrip = options.RowsPerStrip
+		}
+		if rowsPerStrip == 0 {
+			var err error
+			rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
+			if err != nil {
+				return err
+			}
+		}
+		// For CCITT we already set ROWSPERSTRIP above (in the !useTiles branch),
+		// but we need the value to iterate.
+		return f.writeStrips(ctx, bounds, rowsPerStrip, bytesPerRow, &strip, func(stripData []byte, y, rows int) {
+			for row := 0; row < rows; row++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					r, g, b, _ := img.At(x, y+row).RGBA()
+					lum := uint8((19595*r + 38470*g + 7471*b + 1<<15) >> 24)
+					col := x - bounds.Min.X
+					byteIdx := row*bytesPerRow + col/8
+					bitIdx := uint(7 - col%8)
+					if lum < threshold {
+						stripData[byteIdx] |= 1 << bitIdx // black = 1 for MINISWHITE
+					}
+				}
+			}
+		})
+	}
+
+	// Write image data.
+	bytesPerPixel := int(samplesPerPixel)
+	bytesPerRow := int(width) * bytesPerPixel
+
+	if useTiles {
+		tileWidth := options.TileWidth
+		tileHeight := options.TileHeight
+
+		// Fast path for tiles.
+		if rgbaImg, ok := img.(*image.RGBA); ok && !isJPEG && alphaMode == AlphaAssociated {
+			return f.writeTiles(ctx, bounds, tileWidth, tileHeight, bytesPerPixel, func(tileData []byte, tileX, tileY, tw, th int) {
+				tileBytesPerRow := tw * bytesPerPixel
+				for row := 0; row < th; row++ {
+					imgY := tileY + row
+					if imgY >= bounds.Max.Y {
+						break
+					}
+					srcY := imgY - bounds.Min.Y
+					dstStart := row * tileBytesPerRow
+					cols := tw
+					if tileX+cols > bounds.Max.X {
+						cols = bounds.Max.X - tileX
+					}
+					srcStart := srcY*rgbaImg.Stride + (tileX-bounds.Min.X)*4
+					copy(tileData[dstStart:dstStart+cols*4], rgbaImg.Pix[srcStart:srcStart+cols*4])
+				}
+			})
+		}
+		if nrgbaImg, ok := img.(*image.NRGBA); ok && !isJPEG && alphaMode == AlphaUnassociated {
+			return f.writeTiles(ctx, bounds, tileWidth, tileHeight, bytesPerPixel, func(tileData []byte, tileX, tileY, tw, th int) {
+				tileBytesPerRow := tw * bytesPerPixel
+				for row := 0; row < th; row++ {
+					imgY := tileY + row
+					if imgY >= bounds.Max.Y {
+						break
+					}
+					srcY := imgY - bounds.Min.Y
+					dstStart := row * tileBytesPerRow
+					cols := tw
+					if tileX+cols > bounds.Max.X {
+						cols = bounds.Max.X - tileX
+					}
+					srcStart := srcY*nrgbaImg.Stride + (tileX-bounds.Min.X)*4
+					copy(tileData[dstStart:dstStart+cols*4], nrgbaImg.Pix[srcStart:srcStart+cols*4])
+				}
+			})
+		}
+
+		// Generic tile path.
+		if alphaMode == AlphaUnassociated {
+			return f.writeTiles(ctx, bounds, tileWidth, tileHeight, bytesPerPixel, func(tileData []byte, tileX, tileY, tw, th int) {
+				tileBytesPerRow := tw * bytesPerPixel
+				for row := 0; row < th; row++ {
+					imgY := tileY + row
+					if imgY >= bounds.Max.Y {
+						break
+					}
+					for col := 0; col < tw; col++ {
+						imgX := tileX + col
+						if imgX >= bounds.Max.X {
+							break
+						}
+						c := color.NRGBAModel.Convert(img.At(imgX, imgY)).(color.NRGBA)
+						offset := row*tileBytesPerRow + col*bytesPerPixel
+						tileData[offset] = c.R
+						tileData[offset+1] = c.G
+						tileData[offset+2] = c.B
+						if !isJPEG {
+							tileData[offset+3] = c.A
+						}
+					}
+				}
+			})
+		}
+
+		return f.writeTiles(ctx, bounds, tileWidth, tileHeight, bytesPerPixel, func(tileData []byte, tileX, tileY, tw, th int) {
+			tileBytesPerRow := tw * bytesPerPixel
+			for row := 0; row < th; row++ {
+				imgY := tileY + row
+				if imgY >= bounds.Max.Y {
+					break
+				}
+				for col := 0; col < tw; col++ {
+					imgX := tileX + col
+					if imgX >= bounds.Max.X {
+						break
+					}
+					r, g, b, a := img.At(imgX, imgY).RGBA()
+					offset := row*tileBytesPerRow + col*bytesPerPixel
+					tileData[offset] = uint8(r >> 8)
+					tileData[offset+1] = uint8(g >> 8)
+					tileData[offset+2] = uint8(b >> 8)
+					if !isJPEG {
+						tileData[offset+3] = uint8(a >> 8)
+					}
+				}
+			}
+		})
+	}
+
+	// Strip-based output.
+	strip := uint32(0)
+	rowsPerStrip := uint32(0)
 	if isJPEG {
-		// JPEG requires writing the entire image as a single strip to avoid
-		// MCU boundary alignment issues with partial last strips.
 		rowsPerStrip = height
+	} else if options != nil && options.RowsPerStrip > 0 {
+		rowsPerStrip = options.RowsPerStrip
 	} else {
 		var err error
 		rowsPerStrip, err = f.TIFFDefaultStripSize(ctx, 0)
@@ -181,14 +507,6 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 			return err
 		}
 	}
-	if err := f.TIFFSetFieldUint32_t(ctx, TIFFTAG_ROWSPERSTRIP, rowsPerStrip); err != nil {
-		return err
-	}
-
-	// Write image data strip by strip.
-	bytesPerPixel := int(samplesPerPixel)
-	bytesPerRow := int(width) * bytesPerPixel
-	strip := uint32(0)
 
 	// Fast path: direct pixel access for matching image types (non-JPEG only).
 	if rgbaImg, ok := img.(*image.RGBA); ok && !isJPEG && alphaMode == AlphaAssociated {
@@ -260,6 +578,38 @@ func (f *File) writeStrips(ctx context.Context, bounds image.Rectangle, rowsPerS
 			return err
 		}
 		*strip++
+	}
+
+	return f.TIFFWriteDirectory(ctx)
+}
+
+// writeTiles writes image data tile by tile, calling fillTile to populate each tile's pixel data,
+// then writes the TIFF directory. bytesPerPixel is 0 for bilevel (bit-packed) data.
+func (f *File) writeTiles(ctx context.Context, bounds image.Rectangle,
+	tileWidth, tileHeight uint32, bytesPerPixel int,
+	fillTile func(tileData []byte, tileX, tileY, tw, th int)) error {
+
+	tw := int(tileWidth)
+	th := int(tileHeight)
+	var tileSize int
+	if bytesPerPixel == 0 {
+		// Bilevel: bit-packed.
+		tileSize = ((tw + 7) / 8) * th
+	} else {
+		tileSize = tw * th * bytesPerPixel
+	}
+
+	tile := uint32(0)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y += th {
+		for x := bounds.Min.X; x < bounds.Max.X; x += tw {
+			tileData := make([]byte, tileSize)
+			fillTile(tileData, x, y, tw, th)
+
+			if err := f.TIFFWriteEncodedTile(ctx, tile, tileData); err != nil {
+				return err
+			}
+			tile++
+		}
 	}
 
 	return f.TIFFWriteDirectory(ctx)
