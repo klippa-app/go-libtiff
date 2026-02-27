@@ -157,6 +157,206 @@ func (f *File) TIFFNumberOfDirectories(ctx context.Context) (uint32, error) {
 	return api.DecodeU32(res[0]), nil
 }
 
+// TIFFSetSubDirectory sets the current directory to the sub-IFD at the given byte offset.
+func (f *File) TIFFSetSubDirectory(ctx context.Context, diroff uint64) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFSetSubDirectory", f.pointer, diroff)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if res[0] == 0 {
+		return errors.New("could not set sub-directory")
+	}
+	return nil
+}
+
+// TIFFUnlinkDirectory removes the specified directory from the file.
+// The directory number is 1-based.
+func (f *File) TIFFUnlinkDirectory(ctx context.Context, dirn uint32) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFUnlinkDirectory", f.pointer, api.EncodeU32(dirn))
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if res[0] == 0 {
+		return errors.New("could not unlink directory")
+	}
+	return nil
+}
+
+// TIFFCreateDirectory creates a new, empty directory in the file and makes it current.
+// Note: the current libtiff implementation (4.7.1) always returns 0, but we
+// check for non-zero defensively in case future versions add error paths.
+func (f *File) TIFFCreateDirectory(ctx context.Context) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCreateDirectory", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if res[0] != 0 {
+		return errors.New("could not create directory")
+	}
+	return nil
+}
+
+// TIFFCreateEXIFDirectory creates a new EXIF sub-IFD and makes it current.
+// The C function returns 0 on success, non-zero on error.
+func (f *File) TIFFCreateEXIFDirectory(ctx context.Context) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCreateEXIFDirectory", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if res[0] != 0 {
+		return errors.New("could not create EXIF directory")
+	}
+	return nil
+}
+
+// TIFFCreateGPSDirectory creates a new GPS sub-IFD and makes it current.
+// The C function returns 0 on success, non-zero on error.
+func (f *File) TIFFCreateGPSDirectory(ctx context.Context) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCreateGPSDirectory", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if res[0] != 0 {
+		return errors.New("could not create GPS directory")
+	}
+	return nil
+}
+
+// TIFFReadEXIFDirectory reads the EXIF sub-IFD at the given byte offset.
+func (f *File) TIFFReadEXIFDirectory(ctx context.Context, diroff uint64) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFReadEXIFDirectory", f.pointer, diroff)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if res[0] == 0 {
+		return errors.New("could not read EXIF directory")
+	}
+	return nil
+}
+
+// TIFFReadGPSDirectory reads the GPS sub-IFD at the given byte offset.
+func (f *File) TIFFReadGPSDirectory(ctx context.Context, diroff uint64) error {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFReadGPSDirectory", f.pointer, diroff)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if res[0] == 0 {
+		return errors.New("could not read GPS directory")
+	}
+	return nil
+}
+
+// TIFFIsBigEndian returns true if the file uses big-endian byte order.
+func (f *File) TIFFIsBigEndian(ctx context.Context) (bool, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsBigEndian", f.pointer)
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
+// TIFFIsBigTIFF returns true if the file uses the BigTIFF format.
+func (f *File) TIFFIsBigTIFF(ctx context.Context) (bool, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsBigTIFF", f.pointer)
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
+// TIFFIsByteSwapped returns true if the file data requires byte swapping.
+func (f *File) TIFFIsByteSwapped(ctx context.Context) (bool, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsByteSwapped", f.pointer)
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
+// TIFFIsCODECConfigured returns true if the given compression scheme is available.
+func (i *Instance) TIFFIsCODECConfigured(ctx context.Context, scheme uint16) (bool, error) {
+	res, err := i.internalInstance.CallExportedFunction(ctx, "TIFFIsCODECConfigured", api.EncodeU32(uint32(scheme)))
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
+// TIFFRGBAImageOK checks whether the image can be converted to RGBA format.
+// Returns true if conversion is possible, or false with an error message describing why not.
+func (f *File) TIFFRGBAImageOK(ctx context.Context) (bool, string, error) {
+	// TIFFRGBAImageOK requires a 1024-byte buffer for the error message.
+	bufPointer, err := f.instance.malloc(ctx, 1024)
+	if err != nil {
+		return false, "", err
+	}
+	defer f.instance.free(ctx, bufPointer)
+
+	// Zero-initialize the buffer.
+	f.instance.internalInstance.CallLock.Lock()
+	zeroBuf := make([]byte, 1024)
+	f.instance.internalInstance.Module.Memory().Write(uint32(bufPointer), zeroBuf)
+	f.instance.internalInstance.CallLock.Unlock()
+
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFRGBAImageOK", f.pointer, bufPointer)
+	if err != nil {
+		return false, "", err
+	}
+
+	if res[0] != 0 {
+		return true, "", nil
+	}
+
+	// Read the error message.
+	msg := f.instance.readCString(uint32(bufPointer))
+	return false, msg, nil
+}
+
+// TIFFFileName returns the file name associated with the TIFF file.
+func (f *File) TIFFFileName(ctx context.Context) (string, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFFileName", f.pointer)
+	if err != nil {
+		return "", err
+	}
+
+	if res[0] == 0 {
+		return "", errors.New("could not get file name")
+	}
+
+	return f.instance.readCString(uint32(res[0])), nil
+}
+
 type OpenOptions struct {
 	MaxSingleMemAlloc    *int32
 	MaxCumulatedMemAlloc *int32

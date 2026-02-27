@@ -29,7 +29,127 @@ emcmake cmake \
 emmake make
 
 # Build the WASM file for libtiff.
-emcc -O2 -s ALLOW_MEMORY_GROWTH=1 -s ALLOW_TABLE_GROWTH=1 -s STANDALONE_WASM=1 -s ERROR_ON_UNDEFINED_SYMBOLS=0 -s EXPORTED_FUNCTIONS="_TIFFGetField,_TIFFClose,_TIFFReadDirectory,_TIFFSetDirectory,_TIFFReadRGBAImageOriented,_TIFFCurrentDirectory,_TIFFLastDirectory,_TIFFNumberOfDirectories,_TIFFOpen,_TIFFGetFieldUint16_t,_TIFFGetFieldUint32_t,_TIFFGetFieldInt,_TIFFGetFieldFloat,_TIFFGetFieldDouble,_TIFFGetFieldConstChar,_TIFFOpenOptionsAlloc,_TIFFOpenOptionsFree,_TIFFOpenOptionsSetMaxSingleMemAlloc,_TIFFOpenOptionsSetMaxCumulatedMemAlloc,_TIFFOpenOptionsSetErrorHandlerExtRGo,_TIFFOpenOptionsSetWarningHandlerExtRGo,_TIFFOpenOptionsSetWarnAboutUnknownTags,_TIFFOpenExt,_TIFFClientOpenExt,_TIFFClientOpenExtGo,_TIFFGetVersion,_TIFFOpenExtGo,_TIFFSetFieldUint16_t,_TIFFSetFieldUint32_t,_TIFFSetFieldInt,_TIFFSetFieldFloat,_TIFFSetFieldDouble,_TIFFSetFieldString,_TIFFSetFieldExtraSamples,_TIFFWriteEncodedStrip,_TIFFWriteDirectory,_TIFFDefaultStripSize,_free,_malloc,_calloc,_realloc,_vsprintf" -s EXPORTED_RUNTIME_METHODS="ccall,cwrap,addFunction,removeFunction" -s LLD_REPORT_UNDEFINED -s WASM=1 -o "build/libtiff.html" -I/build/tiff-4.7.1/libtiff libtiff/libtiff.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a ../extra.c --no-entry
+EXPORTED_FUNCTIONS=(
+  # Core
+  _TIFFClose
+  _TIFFGetVersion
+
+  # File opening
+  _TIFFOpen
+  _TIFFOpenExt
+  _TIFFOpenExtGo
+  _TIFFClientOpenExt
+  _TIFFClientOpenExtGo
+
+  # Open options
+  _TIFFOpenOptionsAlloc
+  _TIFFOpenOptionsFree
+  _TIFFOpenOptionsSetMaxSingleMemAlloc
+  _TIFFOpenOptionsSetMaxCumulatedMemAlloc
+  _TIFFOpenOptionsSetErrorHandlerExtRGo
+  _TIFFOpenOptionsSetWarningHandlerExtRGo
+  _TIFFOpenOptionsSetWarnAboutUnknownTags
+
+  # Tag getters (typed wrappers in extra.c)
+  _TIFFGetField
+  _TIFFGetFieldUint16_t
+  _TIFFGetFieldUint32_t
+  _TIFFGetFieldInt
+  _TIFFGetFieldFloat
+  _TIFFGetFieldDouble
+  _TIFFGetFieldConstChar
+
+  # Tag setters (typed wrappers in extra.c)
+  _TIFFSetFieldUint16_t
+  _TIFFSetFieldUint32_t
+  _TIFFSetFieldInt
+  _TIFFSetFieldFloat
+  _TIFFSetFieldDouble
+  _TIFFSetFieldString
+  _TIFFSetFieldExtraSamples
+
+  # Directory navigation
+  _TIFFReadDirectory
+  _TIFFSetDirectory
+  _TIFFCurrentDirectory
+  _TIFFLastDirectory
+  _TIFFNumberOfDirectories
+  _TIFFSetSubDirectory
+  _TIFFUnlinkDirectory
+  _TIFFCreateDirectory
+  _TIFFCreateEXIFDirectory
+  _TIFFCreateGPSDirectory
+  _TIFFReadEXIFDirectory
+  _TIFFReadGPSDirectory
+
+  # Reading
+  _TIFFReadRGBAImageOriented
+  _TIFFReadEncodedStrip
+  _TIFFReadEncodedTile
+  _TIFFReadScanline
+  _TIFFReadRGBAStrip
+  _TIFFReadRGBATile
+  _TIFFReadRawStrip
+  _TIFFReadRawTile
+
+  # Writing
+  _TIFFWriteEncodedStrip
+  _TIFFWriteEncodedTile
+  _TIFFWriteScanline
+  _TIFFWriteRawStrip
+  _TIFFWriteRawTile
+  _TIFFWriteDirectory
+  _TIFFCheckpointDirectory
+  _TIFFRewriteDirectory
+  _TIFFFlush
+  _TIFFFlushData
+
+  # Strip/tile info
+  _TIFFDefaultStripSize
+  _TIFFDefaultTileSize
+  _TIFFStripSize
+  _TIFFTileSize
+  _TIFFNumberOfStrips
+  _TIFFNumberOfTiles
+  _TIFFComputeStrip
+  _TIFFComputeTile
+  _TIFFIsTiled
+  _TIFFScanlineSize
+  _TIFFVStripSize
+
+  # File info
+  _TIFFFileName
+  _TIFFIsBigEndian
+  _TIFFIsBigTIFF
+  _TIFFIsByteSwapped
+  _TIFFIsCODECConfigured
+  _TIFFRGBAImageOK
+
+  # Standard library
+  _free
+  _malloc
+  _calloc
+  _realloc
+  _vsprintf
+)
+EXPORTED_FUNCS=$(IFS=,; echo "${EXPORTED_FUNCTIONS[*]}")
+
+emcc -O2 \
+  -s ALLOW_MEMORY_GROWTH=1 \
+  -s ALLOW_TABLE_GROWTH=1 \
+  -s STANDALONE_WASM=1 \
+  -s ERROR_ON_UNDEFINED_SYMBOLS=0 \
+  -s EXPORTED_FUNCTIONS="${EXPORTED_FUNCS}" \
+  -s EXPORTED_RUNTIME_METHODS="ccall,cwrap,addFunction,removeFunction" \
+  -s LLD_REPORT_UNDEFINED \
+  -s WASM=1 \
+  -o "build/libtiff.html" \
+  -I/build/tiff-4.7.1/libtiff \
+  libtiff/libtiff.a \
+  ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libjpeg.a \
+  ../emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libz.a \
+  ../extra.c \
+  --no-entry
 
 # Copy files to the right locations.
 cd ../../

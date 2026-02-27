@@ -106,3 +106,194 @@ func (f *File) TIFFSetFieldExtraSamples(ctx context.Context, sampleTypes []uint1
 
 	return nil
 }
+
+// TIFFWriteEncodedTile writes a tile of data to the TIFF file.
+func (f *File) TIFFWriteEncodedTile(ctx context.Context, tile uint32, data []byte) error {
+	size := uint64(len(data))
+	dataPointer, err := f.instance.malloc(ctx, size)
+	if err != nil {
+		return err
+	}
+	defer f.instance.free(ctx, dataPointer)
+
+	f.instance.internalInstance.CallLock.Lock()
+	ok := f.instance.internalInstance.Module.Memory().Write(uint32(dataPointer), data)
+	f.instance.internalInstance.CallLock.Unlock()
+	if !ok {
+		return errors.New("could not write tile data to WASM memory")
+	}
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFWriteEncodedTile", f.pointer, api.EncodeU32(tile), dataPointer, size)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if api.DecodeI32(results[0]) == -1 {
+		return errors.New("error writing encoded tile")
+	}
+
+	return nil
+}
+
+// TIFFWriteScanline writes a scanline of data at the given row.
+// For planar images, sample specifies the plane (0-based); use 0 for contiguous images.
+func (f *File) TIFFWriteScanline(ctx context.Context, data []byte, row uint32, sample uint16) error {
+	size := uint64(len(data))
+	dataPointer, err := f.instance.malloc(ctx, size)
+	if err != nil {
+		return err
+	}
+	defer f.instance.free(ctx, dataPointer)
+
+	f.instance.internalInstance.CallLock.Lock()
+	ok := f.instance.internalInstance.Module.Memory().Write(uint32(dataPointer), data)
+	f.instance.internalInstance.CallLock.Unlock()
+	if !ok {
+		return errors.New("could not write scanline data to WASM memory")
+	}
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFWriteScanline", f.pointer, dataPointer, api.EncodeU32(row), api.EncodeU32(uint32(sample)))
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if api.DecodeI32(results[0]) == -1 {
+		return errors.New("error writing scanline")
+	}
+
+	return nil
+}
+
+// TIFFWriteRawStrip writes raw (pre-compressed) data for a strip.
+func (f *File) TIFFWriteRawStrip(ctx context.Context, strip uint32, data []byte) error {
+	size := uint64(len(data))
+	dataPointer, err := f.instance.malloc(ctx, size)
+	if err != nil {
+		return err
+	}
+	defer f.instance.free(ctx, dataPointer)
+
+	f.instance.internalInstance.CallLock.Lock()
+	ok := f.instance.internalInstance.Module.Memory().Write(uint32(dataPointer), data)
+	f.instance.internalInstance.CallLock.Unlock()
+	if !ok {
+		return errors.New("could not write raw strip data to WASM memory")
+	}
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFWriteRawStrip", f.pointer, api.EncodeU32(strip), dataPointer, size)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if api.DecodeI32(results[0]) == -1 {
+		return errors.New("error writing raw strip")
+	}
+
+	return nil
+}
+
+// TIFFWriteRawTile writes raw (pre-compressed) data for a tile.
+func (f *File) TIFFWriteRawTile(ctx context.Context, tile uint32, data []byte) error {
+	size := uint64(len(data))
+	dataPointer, err := f.instance.malloc(ctx, size)
+	if err != nil {
+		return err
+	}
+	defer f.instance.free(ctx, dataPointer)
+
+	f.instance.internalInstance.CallLock.Lock()
+	ok := f.instance.internalInstance.Module.Memory().Write(uint32(dataPointer), data)
+	f.instance.internalInstance.CallLock.Unlock()
+	if !ok {
+		return errors.New("could not write raw tile data to WASM memory")
+	}
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFWriteRawTile", f.pointer, api.EncodeU32(tile), dataPointer, size)
+	if err != nil {
+		return err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return err
+	}
+
+	if api.DecodeI32(results[0]) == -1 {
+		return errors.New("error writing raw tile")
+	}
+
+	return nil
+}
+
+// TIFFFlush flushes pending writes to the file, including the directory.
+func (f *File) TIFFFlush(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFFlush", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("error flushing TIFF file")
+	}
+
+	return nil
+}
+
+// TIFFFlushData flushes pending data writes to the file without writing the directory.
+func (f *File) TIFFFlushData(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFFlushData", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("error flushing TIFF data")
+	}
+
+	return nil
+}
+
+// TIFFCheckpointDirectory writes the current directory to the file
+// without closing it, allowing further writes to the same directory.
+func (f *File) TIFFCheckpointDirectory(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCheckpointDirectory", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("error checkpointing directory")
+	}
+
+	return nil
+}
+
+// TIFFRewriteDirectory rewrites the current directory in place.
+// This can be used to update a directory after it has been written.
+func (f *File) TIFFRewriteDirectory(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFRewriteDirectory", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("error rewriting directory")
+	}
+
+	return nil
+}

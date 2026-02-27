@@ -474,3 +474,262 @@ var _ = Describe("TIFFDefaultStripSize", func() {
 		Expect(stripSize).To(BeNumerically("<=", 200))
 	})
 })
+
+var _ = Describe("TIFFWriteScanline", func() {
+	ctx := context.Background()
+
+	It("writes an image scanline by scanline", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-scanline-test-*.tif")
+		Expect(err).To(BeNil())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 4)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 3)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 3)).To(Succeed())
+
+		for row := uint32(0); row < 3; row++ {
+			scanline := []byte{byte(row * 10), byte(row*10 + 1), byte(row*10 + 2), byte(row*10 + 3)}
+			Expect(writeTiff.TIFFWriteScanline(ctx, scanline, row, 0)).To(Succeed())
+		}
+
+		Expect(writeTiff.TIFFWriteDirectory(ctx)).To(Succeed())
+		writeTiff.Close(ctx)
+		tmpFile.Close()
+
+		// Verify.
+		readFile, err := os.Open(tmpPath)
+		Expect(err).To(BeNil())
+		defer readFile.Close()
+
+		stat, err := readFile.Stat()
+		Expect(err).To(BeNil())
+
+		readTiff, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", readFile, uint64(stat.Size()), nil)
+		Expect(err).To(BeNil())
+		defer readTiff.Close(ctx)
+
+		width, err := readTiff.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH)
+		Expect(err).To(BeNil())
+		Expect(width).To(Equal(uint32(4)))
+
+		height, err := readTiff.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH)
+		Expect(err).To(BeNil())
+		Expect(height).To(Equal(uint32(3)))
+	})
+})
+
+var _ = Describe("TIFFWriteRawStrip", func() {
+	ctx := context.Background()
+
+	It("writes raw uncompressed strip data", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-rawstrip-test-*.tif")
+		Expect(err).To(BeNil())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 4)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 2)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 2)).To(Succeed())
+
+		rawData := []byte{10, 20, 30, 40, 50, 60, 70, 80}
+		Expect(writeTiff.TIFFWriteRawStrip(ctx, 0, rawData)).To(Succeed())
+		Expect(writeTiff.TIFFWriteDirectory(ctx)).To(Succeed())
+		writeTiff.Close(ctx)
+		tmpFile.Close()
+
+		// Verify it's a valid TIFF.
+		readFile, err := os.Open(tmpPath)
+		Expect(err).To(BeNil())
+		defer readFile.Close()
+
+		stat, err := readFile.Stat()
+		Expect(err).To(BeNil())
+
+		readTiff, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", readFile, uint64(stat.Size()), nil)
+		Expect(err).To(BeNil())
+		defer readTiff.Close(ctx)
+
+		width, err := readTiff.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH)
+		Expect(err).To(BeNil())
+		Expect(width).To(Equal(uint32(4)))
+	})
+})
+
+var _ = Describe("TIFFWriteRawTile", func() {
+	ctx := context.Background()
+
+	It("writes raw tile data to a tiled TIFF", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-rawtile-test-*.tif")
+		Expect(err).To(BeNil())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 256)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 256)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_TILEWIDTH, 256)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_TILELENGTH, 256)).To(Succeed())
+
+		tileData := make([]byte, 256*256)
+		Expect(writeTiff.TIFFWriteRawTile(ctx, 0, tileData)).To(Succeed())
+		Expect(writeTiff.TIFFWriteDirectory(ctx)).To(Succeed())
+		writeTiff.Close(ctx)
+		tmpFile.Close()
+
+		readFile, err := os.Open(tmpPath)
+		Expect(err).To(BeNil())
+		defer readFile.Close()
+
+		stat, err := readFile.Stat()
+		Expect(err).To(BeNil())
+
+		readTiff, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", readFile, uint64(stat.Size()), nil)
+		Expect(err).To(BeNil())
+		defer readTiff.Close(ctx)
+
+		width, err := readTiff.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH)
+		Expect(err).To(BeNil())
+		Expect(width).To(Equal(uint32(256)))
+	})
+})
+
+var _ = Describe("TIFFFlush", func() {
+	ctx := context.Background()
+
+	It("flushes pending writes without error", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-flush-test-*.tif")
+		Expect(err).To(BeNil())
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+		defer writeTiff.Close(ctx)
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+
+		Expect(writeTiff.TIFFFlush(ctx)).To(Succeed())
+	})
+})
+
+var _ = Describe("TIFFFlushData", func() {
+	ctx := context.Background()
+
+	It("flushes pending data without error", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-flushdata-test-*.tif")
+		Expect(err).To(BeNil())
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+		defer writeTiff.Close(ctx)
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+
+		Expect(writeTiff.TIFFFlushData(ctx)).To(Succeed())
+	})
+})
+
+var _ = Describe("TIFFCheckpointDirectory", func() {
+	ctx := context.Background()
+
+	It("checkpoints the directory without closing it", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-checkpoint-test-*.tif")
+		Expect(err).To(BeNil())
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+		defer writeTiff.Close(ctx)
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+
+		Expect(writeTiff.TIFFCheckpointDirectory(ctx)).To(Succeed())
+	})
+})
+
+var _ = Describe("TIFFRewriteDirectory", func() {
+	ctx := context.Background()
+
+	It("rewrites the current directory in place", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-rewrite-test-*.tif")
+		Expect(err).To(BeNil())
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+		defer writeTiff.Close(ctx)
+
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+
+		// First write directory, then rewrite it.
+		Expect(writeTiff.TIFFCheckpointDirectory(ctx)).To(Succeed())
+		Expect(writeTiff.TIFFRewriteDirectory(ctx)).To(Succeed())
+	})
+})

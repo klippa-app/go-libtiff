@@ -16,19 +16,14 @@
 
 * WebAssembly build of libtiff, so no need for local dependencies
 * Contains libtiff and the binary tools that come with it (like tiff2pdf)
+* Contains extra helper CLI tools like img2tiff and tiff2img
 * Ability to run the binary tools through the library or through CLI
 * This library will handle all complicated cgo/WebAssembly gymnastics for you, no direct WebAssembly usage/knowledge
   required
 * Ability to open files from a Go file reader
-* Helper method render tiff file to Go image and binary image (JPEG or PNG)
+* Helper method for rendering tiff file to Go image and binary image (JPEG or PNG)
+* Helper method for adding a Go image to a tiff file
 * libjpeg-turbo implementation to speed up JEPG compresssion (CGO + native library required)
-
-Note: this library does not provide direct access to all libtiff methods yet,
-please open an issue if you want to see a method added.
-
-### Todo
-
-* Implement more libtiff methods (please open issues if you need something)
 
 ## libtiff
 
@@ -175,6 +170,7 @@ This will provide you access to the following tools:
 - tiffset
 - tiffsplit
 - tiff2img (tool of this project to render tiff to images (JPEG and PNG))
+- img2tiff (tool of this project to convert/append JPEG and PNG images to TIFF files)
 
 Please be aware that these tools mount your own filesystem inside the Wazero runtime to give the tools access to the
 files, since they can't access the files from Go itself, the only difference is in the tiff2img tool.
