@@ -237,6 +237,41 @@ func (f *File) TIFFCreateGPSDirectory(ctx context.Context) error {
 	return nil
 }
 
+// TIFFWriteCustomDirectory writes the current custom directory (e.g. EXIF or GPS)
+// to the file and returns the byte offset where it was written.
+func (f *File) TIFFWriteCustomDirectory(ctx context.Context) (uint64, error) {
+	offsetPointer, err := f.instance.malloc(ctx, 8)
+	if err != nil {
+		return 0, err
+	}
+	defer f.instance.free(ctx, offsetPointer)
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFWriteCustomDirectory", f.pointer, offsetPointer)
+	if err != nil {
+		return 0, err
+	}
+
+	err = f.GetError()
+	if err != nil {
+		return 0, err
+	}
+
+	if results[0] == 0 {
+		return 0, errors.New("could not write custom directory")
+	}
+
+	// Read the uint64 offset from WASM memory.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
+	readValue, success := f.instance.internalInstance.Module.Memory().ReadUint64Le(uint32(offsetPointer))
+	if !success {
+		return 0, errors.New("could not read custom directory offset")
+	}
+
+	return readValue, nil
+}
+
 // TIFFReadEXIFDirectory reads the EXIF sub-IFD at the given byte offset.
 func (f *File) TIFFReadEXIFDirectory(ctx context.Context, diroff uint64) error {
 	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFReadEXIFDirectory", f.pointer, diroff)

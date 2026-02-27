@@ -52,6 +52,46 @@ var _ = Describe("libtiff", func() {
 	})
 })
 
+var _ = Describe("TagNotDefinedError", func() {
+	It("returns a descriptive error message", func() {
+		err := &libtiff.TagNotDefinedError{Tag: libtiff.TIFFTAG_IMAGEWIDTH}
+		Expect(err.Error()).To(ContainSubstring("256"))
+		Expect(err.Error()).To(ContainSubstring("was not found"))
+	})
+
+	It("matches other TagNotDefinedError via Is", func() {
+		err1 := &libtiff.TagNotDefinedError{Tag: libtiff.TIFFTAG_IMAGEWIDTH}
+		err2 := &libtiff.TagNotDefinedError{Tag: libtiff.TIFFTAG_IMAGELENGTH}
+		Expect(err1.Is(err2)).To(BeTrue())
+	})
+
+	It("does not match non-TagNotDefinedError via Is", func() {
+		err1 := &libtiff.TagNotDefinedError{Tag: libtiff.TIFFTAG_IMAGEWIDTH}
+		Expect(err1.Is(context.Canceled)).To(BeFalse())
+	})
+})
+
+var _ = Describe("Config context helpers", func() {
+	It("stores and retrieves Config from context", func() {
+		cfg := &libtiff.Config{Debug: true}
+		ctx := libtiff.ConfigInContext(context.Background(), cfg)
+		retrieved := libtiff.ConfigFromContext(ctx)
+		Expect(retrieved).To(Equal(cfg))
+	})
+
+	It("returns nil when Config is not in context", func() {
+		retrieved := libtiff.ConfigFromContext(context.Background())
+		Expect(retrieved).To(BeNil())
+	})
+})
+
+var _ = Describe("GetInstance", func() {
+	It("returns an error when config is nil", func() {
+		_, err := libtiff.GetInstance(context.Background(), nil)
+		Expect(err).To(MatchError("config must be given"))
+	})
+})
+
 var _ = Describe("files", func() {
 	Context("a normal tiff file", func() {
 		When("is opened with a file path", func() {
@@ -338,6 +378,47 @@ var _ = Describe("directory", func() {
 				0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
 			}))
 		})
+
+		It("stops early when breaking out of Directories iterator", func() {
+			ctx := context.Background()
+
+			dirs := []int{}
+			for i, err := range file.Directories(ctx) {
+				Expect(err).To(BeNil())
+				dirs = append(dirs, i)
+				if len(dirs) == 3 {
+					break
+				}
+			}
+			Expect(dirs).To(Equal([]int{0, 1, 2}))
+		})
+
+		It("advances to the next directory with TIFFReadDirectory", func() {
+			ctx := context.Background()
+
+			dir, err := file.TIFFCurrentDirectory(ctx)
+			Expect(err).To(BeNil())
+			Expect(dir).To(Equal(uint32(0)))
+
+			err = file.TIFFReadDirectory(ctx)
+			Expect(err).To(BeNil())
+
+			dir, err = file.TIFFCurrentDirectory(ctx)
+			Expect(err).To(BeNil())
+			Expect(dir).To(Equal(uint32(1)))
+		})
+
+		It("returns an error when reading past the last directory", func() {
+			ctx := context.Background()
+
+			// Move to the last directory.
+			err := file.TIFFSetDirectory(ctx, 9)
+			Expect(err).To(BeNil())
+
+			// Reading past the last directory should fail.
+			err = file.TIFFReadDirectory(ctx)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 })
 
@@ -392,6 +473,121 @@ var _ = Describe("image", func() {
 			Expect(err).To(BeNil())
 			Expect(image).To(Not(BeNil()))
 			Expect(image).To(HaveLen(321744))
+		})
+
+		It("returns an error when options are nil", func() {
+			_, err := file.ToImage(context.Background(), nil)
+			Expect(err).To(MatchError("options cannot be nil"))
+		})
+
+		It("returns an error for an invalid output format", func() {
+			_, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: "bmp",
+				OutputTarget: libtiff.ImageOptionsOutputTargetBytes,
+			})
+			Expect(err).To(MatchError("invalid output format given"))
+		})
+
+		It("returns an error for an invalid output target", func() {
+			_, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget: "memory",
+			})
+			Expect(err).To(MatchError("invalid output target given"))
+		})
+
+		It("writes JPEG output to a file", func() {
+			tmpFile, err := os.CreateTemp("", "libtiff-toimage-test-*.jpg")
+			Expect(err).To(BeNil())
+			tmpPath := tmpFile.Name()
+			tmpFile.Close()
+			defer os.Remove(tmpPath)
+
+			result, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat:   libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget:   libtiff.ImageOptionsOutputTargetFile,
+				TargetFilePath: tmpPath,
+			})
+			Expect(err).To(BeNil())
+			Expect(result).To(BeNil())
+
+			stat, err := os.Stat(tmpPath)
+			Expect(err).To(BeNil())
+			Expect(stat.Size()).To(BeNumerically(">", 0))
+		})
+
+		It("writes PNG output to a file", func() {
+			tmpFile, err := os.CreateTemp("", "libtiff-toimage-test-*.png")
+			Expect(err).To(BeNil())
+			tmpPath := tmpFile.Name()
+			tmpFile.Close()
+			defer os.Remove(tmpPath)
+
+			result, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat:   libtiff.ImageOptionsOutputFormatPNG,
+				OutputTarget:   libtiff.ImageOptionsOutputTargetFile,
+				TargetFilePath: tmpPath,
+			})
+			Expect(err).To(BeNil())
+			Expect(result).To(BeNil())
+
+			stat, err := os.Stat(tmpPath)
+			Expect(err).To(BeNil())
+			Expect(stat.Size()).To(BeNumerically(">", 0))
+		})
+
+		It("returns an error for file target with empty path", func() {
+			_, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget: libtiff.ImageOptionsOutputTargetFile,
+			})
+			Expect(err).To(MatchError("target file path can't be empty"))
+		})
+
+		It("reduces JPEG quality to fit MaxFileSize", func() {
+			imgBytes, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget: libtiff.ImageOptionsOutputTargetBytes,
+				MaxFileSize:  30000,
+			})
+			Expect(err).To(BeNil())
+			Expect(int64(len(imgBytes))).To(BeNumerically("<", 30000))
+		})
+
+		It("returns an error when JPEG cannot fit MaxFileSize", func() {
+			_, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget: libtiff.ImageOptionsOutputTargetBytes,
+				MaxFileSize:  100,
+			})
+			Expect(err).To(MatchError("TIFF image would exceed maximum filesize"))
+		})
+
+		It("returns an error when PNG exceeds MaxFileSize", func() {
+			_, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatPNG,
+				OutputTarget: libtiff.ImageOptionsOutputTargetBytes,
+				MaxFileSize:  100,
+			})
+			Expect(err).To(MatchError("TIFF image would exceed maximum filesize"))
+		})
+
+		It("uses default JPEG quality when OutputQuality is 0", func() {
+			imgDefault, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat: libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget: libtiff.ImageOptionsOutputTargetBytes,
+			})
+			Expect(err).To(BeNil())
+			Expect(imgDefault).ToNot(BeNil())
+
+			// Default quality is 95, so the output should match explicit quality 95.
+			imgExplicit, err := file.ToImage(context.Background(), &libtiff.ImageOptions{
+				OutputFormat:  libtiff.ImageOptionsOutputFormatJPEG,
+				OutputTarget:  libtiff.ImageOptionsOutputTargetBytes,
+				OutputQuality: 95,
+			})
+			Expect(err).To(BeNil())
+			Expect(len(imgDefault)).To(Equal(len(imgExplicit)))
 		})
 	})
 })

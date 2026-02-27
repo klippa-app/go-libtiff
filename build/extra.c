@@ -106,3 +106,13 @@ EMSCRIPTEN_KEEPALIVE
 int TIFFGetFieldTwoUint16(TIFF *tif, uint32_t tag, uint16_t *val1, uint16_t *val2) {
   return TIFFGetField(tif, tag, val1, val2);
 }
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t val) {
+  return TIFFSetField(tif, tag, val);
+}

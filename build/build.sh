@@ -69,6 +69,8 @@ EXPORTED_FUNCTIONS=(
   _TIFFSetFieldExtraSamples
   _TIFFSetFieldTwoUint16
   _TIFFGetFieldTwoUint16
+  _TIFFGetFieldUint64_t
+  _TIFFSetFieldUint64_t
 
   # Directory navigation
   _TIFFReadDirectory
@@ -102,6 +104,7 @@ EXPORTED_FUNCTIONS=(
   _TIFFWriteRawTile
   _TIFFWriteDirectory
   _TIFFCheckpointDirectory
+  _TIFFWriteCustomDirectory
   _TIFFRewriteDirectory
   _TIFFFlush
   _TIFFFlushData

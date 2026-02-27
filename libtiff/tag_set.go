@@ -20,6 +20,19 @@ func (f *File) TIFFSetFieldUint16_t(ctx context.Context, tag TIFFTAG, val uint16
 	return nil
 }
 
+func (f *File) TIFFSetFieldUint64_t(ctx context.Context, tag TIFFTAG, val uint64) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFSetFieldUint64_t", f.pointer, api.EncodeU32(uint32(tag)), val)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("could not set tag value")
+	}
+
+	return nil
+}
+
 func (f *File) TIFFSetFieldUint32_t(ctx context.Context, tag TIFFTAG, val uint32) error {
 	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFSetFieldUint32_t", f.pointer, api.EncodeU32(uint32(tag)), api.EncodeU32(val))
 	if err != nil {

@@ -50,6 +50,40 @@ var _ = Describe("TIFFReadEncodedTile", func() {
 		_, err = tiffFile.TIFFReadEncodedTile(ctx, 0)
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("reads and decompresses a tile from a tiled TIFF", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:  32,
+			TileHeight: 32,
+		})
+		defer cleanup()
+
+		data, err := tiffFile.TIFFReadEncodedTile(ctx, 0)
+		Expect(err).To(BeNil())
+		Expect(data).ToNot(BeEmpty())
+		// 32x32 tile, 4 bytes per pixel = 4096 bytes.
+		Expect(len(data)).To(Equal(32 * 32 * 4))
+	})
+
+	It("reads all tiles from a tiled TIFF", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:  32,
+			TileHeight: 32,
+		})
+		defer cleanup()
+
+		numTiles, err := tiffFile.TIFFNumberOfTiles(ctx)
+		Expect(err).To(BeNil())
+		Expect(numTiles).To(Equal(uint32(4)))
+
+		for i := uint32(0); i < numTiles; i++ {
+			data, err := tiffFile.TIFFReadEncodedTile(ctx, i)
+			Expect(err).To(BeNil())
+			Expect(data).ToNot(BeEmpty())
+		}
+	})
 })
 
 var _ = Describe("TIFFReadScanline", func() {
@@ -109,6 +143,37 @@ var _ = Describe("TIFFReadRGBATile", func() {
 		_, err = tiffFile.TIFFReadRGBATile(ctx, 0, 0)
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("reads RGBA data from a tiled TIFF", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:  32,
+			TileHeight: 32,
+		})
+		defer cleanup()
+
+		data, err := tiffFile.TIFFReadRGBATile(ctx, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(data).ToNot(BeEmpty())
+		// 32x32 tile, 4 bytes per pixel = 4096 bytes.
+		Expect(len(data)).To(Equal(32 * 32 * 4))
+	})
+
+	It("reads all tiles as RGBA from a tiled TIFF", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:  32,
+			TileHeight: 32,
+		})
+		defer cleanup()
+
+		// 64x64 image with 32x32 tiles = 4 tiles (2x2 grid).
+		for _, pos := range [][2]uint32{{0, 0}, {32, 0}, {0, 32}, {32, 32}} {
+			data, err := tiffFile.TIFFReadRGBATile(ctx, pos[0], pos[1])
+			Expect(err).To(BeNil())
+			Expect(data).ToNot(BeEmpty())
+		}
+	})
 })
 
 var _ = Describe("TIFFReadRawStrip", func() {
@@ -155,6 +220,40 @@ var _ = Describe("TIFFReadRawTile", func() {
 
 		_, err = tiffFile.TIFFReadRawTile(ctx, 0)
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("reads raw tile data from a tiled TIFF", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:   32,
+			TileHeight:  32,
+			Compression: libtiff.COMPRESSION_LZW,
+		})
+		defer cleanup()
+
+		data, err := tiffFile.TIFFReadRawTile(ctx, 0)
+		Expect(err).To(BeNil())
+		Expect(data).ToNot(BeEmpty())
+	})
+
+	It("returns raw data smaller than decoded data for compressed tiles", func() {
+		// Create a highly compressible image (solid color).
+		img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:   32,
+			TileHeight:  32,
+			Compression: libtiff.COMPRESSION_LZW,
+		})
+		defer cleanup()
+
+		raw, err := tiffFile.TIFFReadRawTile(ctx, 0)
+		Expect(err).To(BeNil())
+
+		decoded, err := tiffFile.TIFFReadEncodedTile(ctx, 0)
+		Expect(err).To(BeNil())
+
+		Expect(len(raw)).To(BeNumerically("<", len(decoded)))
 	})
 })
 

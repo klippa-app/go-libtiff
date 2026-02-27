@@ -371,6 +371,196 @@ var _ = Describe("TIFFCreateGPSDirectory", func() {
 	})
 })
 
+var _ = Describe("WarnHandler", func() {
+	ctx := context.Background()
+
+	It("receives warning messages from libtiff", func() {
+		var warnings []string
+		warnAboutUnknown := true
+		tiffFile, err := instance.TIFFOpenFileFromPath(ctx, "/testdata/multipage-sample.tif", &libtiff.OpenOptions{
+			WarnHandler: func(module string, message string) {
+				warnings = append(warnings, message)
+			},
+			WarnAboutUnknownTags: &warnAboutUnknown,
+		})
+		Expect(err).To(BeNil())
+		defer tiffFile.Close(ctx)
+
+		// The file should open successfully regardless of warnings.
+		width, err := tiffFile.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH)
+		Expect(err).To(BeNil())
+		Expect(width).To(BeNumerically(">", 0))
+	})
+})
+
+var _ = Describe("TIFFWriteCustomDirectory EXIF roundtrip", func() {
+	ctx := context.Background()
+
+	It("writes an EXIF sub-IFD and reads it back via TIFFReadEXIFDirectory", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-exif-roundtrip-*.tif")
+		Expect(err).To(BeNil())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+
+		// Write the main IFD first.
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+		Expect(writeTiff.TIFFWriteDirectory(ctx)).To(Succeed())
+
+		// Create the EXIF sub-IFD and set at least one tag
+		// (an empty directory causes malloc(0) → NULL in WASM).
+		Expect(writeTiff.TIFFCreateEXIFDirectory(ctx)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.EXIFTAG_COLORSPACE, 1)).To(Succeed())
+
+		// Write the EXIF sub-IFD and get its offset.
+		exifOffset, err := writeTiff.TIFFWriteCustomDirectory(ctx)
+		Expect(err).To(BeNil())
+		Expect(exifOffset).To(BeNumerically(">", 0))
+
+		// Go back to the main IFD and link the EXIF sub-IFD.
+		Expect(writeTiff.TIFFSetDirectory(ctx, 0)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint64_t(ctx, libtiff.TIFFTAG_EXIFIFD, exifOffset)).To(Succeed())
+		Expect(writeTiff.TIFFRewriteDirectory(ctx)).To(Succeed())
+
+		writeTiff.Close(ctx)
+		tmpFile.Close()
+
+		// Reopen and verify we can read the EXIF directory.
+		readFile, err := os.Open(tmpPath)
+		Expect(err).To(BeNil())
+		defer readFile.Close()
+
+		stat, err := readFile.Stat()
+		Expect(err).To(BeNil())
+
+		readTiff, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", readFile, uint64(stat.Size()), nil)
+		Expect(err).To(BeNil())
+		defer readTiff.Close(ctx)
+
+		// Read the EXIF offset tag.
+		readOffset, err := readTiff.TIFFGetFieldUint64_t(ctx, libtiff.TIFFTAG_EXIFIFD)
+		Expect(err).To(BeNil())
+		Expect(readOffset).To(Equal(exifOffset))
+
+		// Read the EXIF directory.
+		Expect(readTiff.TIFFReadEXIFDirectory(ctx, readOffset)).To(Succeed())
+	})
+})
+
+var _ = Describe("TIFFWriteCustomDirectory GPS roundtrip", func() {
+	ctx := context.Background()
+
+	It("writes a GPS sub-IFD and reads it back via TIFFReadGPSDirectory", func() {
+		tmpFile, err := os.CreateTemp("", "libtiff-gps-roundtrip-*.tif")
+		Expect(err).To(BeNil())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
+
+		fileMode := "w"
+		writeTiff, err := instance.TIFFOpenFileFromReadWriteSeeker(ctx, "test.tif", tmpFile, 0, &libtiff.OpenOptions{
+			FileMode: &fileMode,
+		})
+		Expect(err).To(BeNil())
+
+		// Write the main IFD first.
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGEWIDTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_IMAGELENGTH, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE, 8)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_SAMPLESPERPIXEL, 1)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint16_t(ctx, libtiff.TIFFTAG_PHOTOMETRIC, uint16(libtiff.PHOTOMETRIC_MINISBLACK))).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP, 1)).To(Succeed())
+		Expect(writeTiff.TIFFWriteEncodedStrip(ctx, 0, []byte{128})).To(Succeed())
+		Expect(writeTiff.TIFFWriteDirectory(ctx)).To(Succeed())
+
+		// Create the GPS sub-IFD and set at least one tag
+		// (an empty directory causes malloc(0) → NULL in WASM).
+		Expect(writeTiff.TIFFCreateGPSDirectory(ctx)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldString(ctx, libtiff.GPSTAG_LATITUDEREF, "N")).To(Succeed())
+
+		// Write the GPS sub-IFD and get its offset.
+		gpsOffset, err := writeTiff.TIFFWriteCustomDirectory(ctx)
+		Expect(err).To(BeNil())
+		Expect(gpsOffset).To(BeNumerically(">", 0))
+
+		// Go back to the main IFD and link the GPS sub-IFD.
+		Expect(writeTiff.TIFFSetDirectory(ctx, 0)).To(Succeed())
+		Expect(writeTiff.TIFFSetFieldUint64_t(ctx, libtiff.TIFFTAG_GPSIFD, gpsOffset)).To(Succeed())
+		Expect(writeTiff.TIFFRewriteDirectory(ctx)).To(Succeed())
+
+		writeTiff.Close(ctx)
+		tmpFile.Close()
+
+		// Reopen and verify we can read the GPS directory.
+		readFile, err := os.Open(tmpPath)
+		Expect(err).To(BeNil())
+		defer readFile.Close()
+
+		stat, err := readFile.Stat()
+		Expect(err).To(BeNil())
+
+		readTiff, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", readFile, uint64(stat.Size()), nil)
+		Expect(err).To(BeNil())
+		defer readTiff.Close(ctx)
+
+		// Read the GPS offset tag.
+		readOffset, err := readTiff.TIFFGetFieldUint64_t(ctx, libtiff.TIFFTAG_GPSIFD)
+		Expect(err).To(BeNil())
+		Expect(readOffset).To(Equal(gpsOffset))
+
+		// Read the GPS directory.
+		Expect(readTiff.TIFFReadGPSDirectory(ctx, readOffset)).To(Succeed())
+	})
+})
+
+var _ = Describe("OpenOptions via TIFFOpenFileFromReader", func() {
+	ctx := context.Background()
+
+	It("returns an error when MaxSingleMemAlloc is reached via Reader", func() {
+		filePath := "../testdata/multipage-sample.tif"
+		f, err := os.Open(filePath)
+		Expect(err).To(BeNil())
+		defer f.Close()
+
+		stat, err := f.Stat()
+		Expect(err).To(BeNil())
+
+		maxMemory := int32(30)
+		tiffFile, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", f, uint64(stat.Size()), &libtiff.OpenOptions{
+			MaxSingleMemAlloc: &maxMemory,
+		})
+		Expect(err).To(MatchError(ContainSubstring("is beyond the 30 byte limit defined in open options")))
+		Expect(tiffFile).To(BeNil())
+	})
+
+	It("returns an error when MaxCumulatedMemAlloc is reached via Reader", func() {
+		filePath := "../testdata/multipage-sample.tif"
+		f, err := os.Open(filePath)
+		Expect(err).To(BeNil())
+		defer f.Close()
+
+		stat, err := f.Stat()
+		Expect(err).To(BeNil())
+
+		maxMemory := int32(30)
+		tiffFile, err := instance.TIFFOpenFileFromReader(ctx, "test.tif", f, uint64(stat.Size()), &libtiff.OpenOptions{
+			MaxCumulatedMemAlloc: &maxMemory,
+		})
+		Expect(err).To(MatchError(ContainSubstring("is beyond the 30 cumulated byte limit defined in open options")))
+		Expect(tiffFile).To(BeNil())
+	})
+})
+
 var _ = Describe("TIFFSetSubDirectory", func() {
 	ctx := context.Background()
 

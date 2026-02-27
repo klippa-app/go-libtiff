@@ -206,6 +206,29 @@ var _ = Describe("TIFFComputeStrip", func() {
 		Expect(err).To(BeNil())
 		Expect(strip).To(Equal(uint32(0)))
 	})
+
+	It("returns a higher strip number for rows beyond the first strip", func() {
+		img := createTestRGBA(16, 16)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			RowsPerStrip: 4,
+		})
+		defer cleanup()
+
+		// Row 0 should be in strip 0.
+		strip0, err := tiffFile.TIFFComputeStrip(ctx, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(strip0).To(Equal(uint32(0)))
+
+		// Row 4 should be in strip 1.
+		strip1, err := tiffFile.TIFFComputeStrip(ctx, 4, 0)
+		Expect(err).To(BeNil())
+		Expect(strip1).To(Equal(uint32(1)))
+
+		// Row 12 should be in strip 3.
+		strip3, err := tiffFile.TIFFComputeStrip(ctx, 12, 0)
+		Expect(err).To(BeNil())
+		Expect(strip3).To(Equal(uint32(3)))
+	})
 })
 
 var _ = Describe("TIFFComputeTile", func() {
@@ -219,6 +242,35 @@ var _ = Describe("TIFFComputeTile", func() {
 		tile, err := tiffFile.TIFFComputeTile(ctx, 0, 0, 0, 0)
 		Expect(err).To(BeNil())
 		Expect(tile).To(Equal(uint32(0)))
+	})
+
+	It("returns different tile numbers for different coordinates in a tiled image", func() {
+		img := createTestRGBA(64, 64)
+		tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+			TileWidth:  32,
+			TileHeight: 32,
+		})
+		defer cleanup()
+
+		// Top-left tile.
+		tile0, err := tiffFile.TIFFComputeTile(ctx, 0, 0, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(tile0).To(Equal(uint32(0)))
+
+		// Top-right tile.
+		tile1, err := tiffFile.TIFFComputeTile(ctx, 32, 0, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(tile1).To(Equal(uint32(1)))
+
+		// Bottom-left tile.
+		tile2, err := tiffFile.TIFFComputeTile(ctx, 0, 32, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(tile2).To(Equal(uint32(2)))
+
+		// Bottom-right tile.
+		tile3, err := tiffFile.TIFFComputeTile(ctx, 32, 32, 0, 0)
+		Expect(err).To(BeNil())
+		Expect(tile3).To(Equal(uint32(3)))
 	})
 })
 
@@ -248,6 +300,17 @@ var _ = Describe("TIFFScanlineSize", func() {
 		Expect(err).To(BeNil())
 		Expect(size).To(BeNumerically(">", 0))
 	})
+
+	It("returns width * spp for a written RGBA image", func() {
+		img := createTestRGBA(16, 16)
+		tiffFile, cleanup := writeAndReopen(ctx, img, nil)
+		defer cleanup()
+
+		size, err := tiffFile.TIFFScanlineSize(ctx)
+		Expect(err).To(BeNil())
+		// 16 pixels * 4 bytes/pixel = 64.
+		Expect(size).To(Equal(int64(64)))
+	})
 })
 
 var _ = Describe("TIFFVStripSize", func() {
@@ -261,6 +324,19 @@ var _ = Describe("TIFFVStripSize", func() {
 		size, err := tiffFile.TIFFVStripSize(ctx, 10)
 		Expect(err).To(BeNil())
 		Expect(size).To(BeNumerically(">", 0))
+	})
+
+	It("equals nrows * scanline size for a written image", func() {
+		img := createTestRGBA(16, 16)
+		tiffFile, cleanup := writeAndReopen(ctx, img, nil)
+		defer cleanup()
+
+		scanlineSize, err := tiffFile.TIFFScanlineSize(ctx)
+		Expect(err).To(BeNil())
+
+		vstripSize, err := tiffFile.TIFFVStripSize(ctx, 4)
+		Expect(err).To(BeNil())
+		Expect(vstripSize).To(Equal(scanlineSize * 4))
 	})
 })
 

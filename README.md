@@ -17,6 +17,7 @@
 * WebAssembly build of libtiff, so no need for local dependencies
 * Contains libtiff and the binary tools that come with it (like tiff2pdf)
 * Contains extra helper CLI tools like img2tiff and tiff2img
+* A patched libtiff that has [better support for JPEG compressed images in pdf2tiff](https://gitlab.com/libtiff/libtiff/-/merge_requests/811)
 * Ability to run the binary tools through the library or through CLI
 * This library will handle all complicated cgo/WebAssembly gymnastics for you, no direct WebAssembly usage/knowledge
   required

@@ -1146,5 +1146,222 @@ var _ = Describe("FromGoImage", func() {
 			Expect(err).To(BeNil())
 			Expect(comp).To(Equal(uint16(libtiff.COMPRESSION_LZW)))
 		})
+
+		It("handles non-evenly-divisible RGBA tile dimensions with edge padding", func() {
+			// 50x50 image with 32x32 tiles: last column/row of tiles extend beyond image.
+			src := createTestRGBA(50, 50)
+			tiffFile, cleanup := writeAndReopen(ctx, src, &libtiff.FromGoImageOptions{
+				TileWidth:  32,
+				TileHeight: 32,
+			})
+			defer cleanup()
+
+			isTiled, err := tiffFile.TIFFIsTiled(ctx)
+			Expect(err).To(BeNil())
+			Expect(isTiled).To(BeTrue())
+
+			// 2x2 tile grid for 50x50 with 32x32 tiles.
+			numTiles, err := tiffFile.TIFFNumberOfTiles(ctx)
+			Expect(err).To(BeNil())
+			Expect(numTiles).To(Equal(uint32(4)))
+
+			goImage, imgCleanup, err := tiffFile.ToGoImage(ctx)
+			Expect(err).To(BeNil())
+			defer imgCleanup(ctx)
+
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					sr, sg, sb, sa := src.At(x, y).RGBA()
+					dr, dg, db, da := goImage.At(x, y).RGBA()
+					Expect(dr).To(Equal(sr), "red mismatch at (%d,%d)", x, y)
+					Expect(dg).To(Equal(sg), "green mismatch at (%d,%d)", x, y)
+					Expect(db).To(Equal(sb), "blue mismatch at (%d,%d)", x, y)
+					Expect(da).To(Equal(sa), "alpha mismatch at (%d,%d)", x, y)
+				}
+			}
+		})
+
+		It("handles non-evenly-divisible NRGBA tile dimensions with edge padding", func() {
+			src := createTestNRGBA(50, 50)
+			tiffFile, cleanup := writeAndReopen(ctx, src, &libtiff.FromGoImageOptions{
+				TileWidth:  32,
+				TileHeight: 32,
+			})
+			defer cleanup()
+
+			goImage, imgCleanup, err := tiffFile.ToGoImage(ctx)
+			Expect(err).To(BeNil())
+			defer imgCleanup(ctx)
+
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					sr, sg, sb, sa := src.At(x, y).RGBA()
+					dr, dg, db, da := goImage.At(x, y).RGBA()
+					Expect(dr).To(Equal(sr), "red mismatch at (%d,%d)", x, y)
+					Expect(dg).To(Equal(sg), "green mismatch at (%d,%d)", x, y)
+					Expect(db).To(Equal(sb), "blue mismatch at (%d,%d)", x, y)
+					Expect(da).To(Equal(sa), "alpha mismatch at (%d,%d)", x, y)
+				}
+			}
+		})
+
+		It("handles non-evenly-divisible generic image tile dimensions with edge padding", func() {
+			// image.Gray forces the generic associated-alpha tile path with edge padding.
+			gray := image.NewGray(image.Rect(0, 0, 50, 50))
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					gray.SetGray(x, y, color.Gray{Y: uint8((x + y) % 256)})
+				}
+			}
+
+			tiffFile, cleanup := writeAndReopen(ctx, gray, &libtiff.FromGoImageOptions{
+				TileWidth:  32,
+				TileHeight: 32,
+			})
+			defer cleanup()
+
+			goImage, imgCleanup, err := tiffFile.ToGoImage(ctx)
+			Expect(err).To(BeNil())
+			defer imgCleanup(ctx)
+
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					expected := uint8((x + y) % 256)
+					r, _, _, _ := goImage.At(x, y).RGBA()
+					Expect(uint8(r >> 8)).To(Equal(expected), "mismatch at (%d,%d)", x, y)
+				}
+			}
+		})
+
+		It("handles generic unassociated-alpha image type with tiles", func() {
+			// Use AlphaUnassociated with a non-NRGBA image to exercise
+			// the generic unassociated tile path.
+			gray := image.NewGray(image.Rect(0, 0, 64, 64))
+			for y := 0; y < 64; y++ {
+				for x := 0; x < 64; x++ {
+					gray.SetGray(x, y, color.Gray{Y: uint8((x * y) % 256)})
+				}
+			}
+
+			tiffFile, cleanup := writeAndReopen(ctx, gray, &libtiff.FromGoImageOptions{
+				AlphaMode:  libtiff.AlphaUnassociated,
+				TileWidth:  32,
+				TileHeight: 32,
+			})
+			defer cleanup()
+
+			isTiled, err := tiffFile.TIFFIsTiled(ctx)
+			Expect(err).To(BeNil())
+			Expect(isTiled).To(BeTrue())
+
+			goImage, imgCleanup, err := tiffFile.ToGoImage(ctx)
+			Expect(err).To(BeNil())
+			defer imgCleanup(ctx)
+
+			for y := 0; y < 64; y++ {
+				for x := 0; x < 64; x++ {
+					expected := uint8((x * y) % 256)
+					r, _, _, _ := goImage.At(x, y).RGBA()
+					Expect(uint8(r >> 8)).To(Equal(expected), "mismatch at (%d,%d)", x, y)
+				}
+			}
+		})
+
+		It("handles generic unassociated-alpha tiles with edge padding", func() {
+			gray := image.NewGray(image.Rect(0, 0, 50, 50))
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					gray.SetGray(x, y, color.Gray{Y: uint8((x + y) % 256)})
+				}
+			}
+
+			tiffFile, cleanup := writeAndReopen(ctx, gray, &libtiff.FromGoImageOptions{
+				AlphaMode:  libtiff.AlphaUnassociated,
+				TileWidth:  32,
+				TileHeight: 32,
+			})
+			defer cleanup()
+
+			goImage, imgCleanup, err := tiffFile.ToGoImage(ctx)
+			Expect(err).To(BeNil())
+			defer imgCleanup(ctx)
+
+			for y := 0; y < 50; y++ {
+				for x := 0; x < 50; x++ {
+					expected := uint8((x + y) % 256)
+					r, _, _, _ := goImage.At(x, y).RGBA()
+					Expect(uint8(r >> 8)).To(Equal(expected), "mismatch at (%d,%d)", x, y)
+				}
+			}
+		})
+	})
+
+	Context("CCITT bilevel with tiles", func() {
+		It("writes CCITTFAX4 with tile-based output", func() {
+			img := createTestRGBA(64, 64)
+			tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+				Compression: libtiff.COMPRESSION_CCITTFAX4,
+				TileWidth:   32,
+				TileHeight:  32,
+			})
+			defer cleanup()
+
+			isTiled, err := tiffFile.TIFFIsTiled(ctx)
+			Expect(err).To(BeNil())
+			Expect(isTiled).To(BeTrue())
+
+			comp, err := tiffFile.TIFFGetFieldUint16_t(ctx, libtiff.TIFFTAG_COMPRESSION)
+			Expect(err).To(BeNil())
+			Expect(comp).To(Equal(uint16(libtiff.COMPRESSION_CCITTFAX4)))
+
+			bps, err := tiffFile.TIFFGetFieldUint16_t(ctx, libtiff.TIFFTAG_BITSPERSAMPLE)
+			Expect(err).To(BeNil())
+			Expect(bps).To(Equal(uint16(1)))
+
+			numTiles, err := tiffFile.TIFFNumberOfTiles(ctx)
+			Expect(err).To(BeNil())
+			Expect(numTiles).To(Equal(uint32(4)))
+		})
+
+		It("writes CCITTFAX3 with tile-based output", func() {
+			img := createTestRGBA(64, 64)
+			tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+				Compression: libtiff.COMPRESSION_CCITTFAX3,
+				TileWidth:   32,
+				TileHeight:  32,
+			})
+			defer cleanup()
+
+			isTiled, err := tiffFile.TIFFIsTiled(ctx)
+			Expect(err).To(BeNil())
+			Expect(isTiled).To(BeTrue())
+
+			comp, err := tiffFile.TIFFGetFieldUint16_t(ctx, libtiff.TIFFTAG_COMPRESSION)
+			Expect(err).To(BeNil())
+			Expect(comp).To(Equal(uint16(libtiff.COMPRESSION_CCITTFAX3)))
+		})
+	})
+
+	Context("CCITT bilevel with custom RowsPerStrip", func() {
+		It("uses custom RowsPerStrip with CCITTFAX4", func() {
+			img := createTestRGBA(32, 32)
+			tiffFile, cleanup := writeAndReopen(ctx, img, &libtiff.FromGoImageOptions{
+				Compression:  libtiff.COMPRESSION_CCITTFAX4,
+				RowsPerStrip: 8,
+			})
+			defer cleanup()
+
+			rps, err := tiffFile.TIFFGetFieldUint32_t(ctx, libtiff.TIFFTAG_ROWSPERSTRIP)
+			Expect(err).To(BeNil())
+			Expect(rps).To(Equal(uint32(8)))
+
+			strips, err := tiffFile.TIFFNumberOfStrips(ctx)
+			Expect(err).To(BeNil())
+			Expect(strips).To(Equal(uint32(4))) // 32 rows / 8 rows per strip = 4 strips
+
+			comp, err := tiffFile.TIFFGetFieldUint16_t(ctx, libtiff.TIFFTAG_COMPRESSION)
+			Expect(err).To(BeNil())
+			Expect(comp).To(Equal(uint16(libtiff.COMPRESSION_CCITTFAX4)))
+		})
 	})
 })

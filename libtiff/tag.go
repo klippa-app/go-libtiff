@@ -53,6 +53,36 @@ func (f *File) TIFFGetFieldUint16_t(ctx context.Context, tag TIFFTAG) (uint16, e
 	return readValue, nil
 }
 
+func (f *File) TIFFGetFieldUint64_t(ctx context.Context, tag TIFFTAG) (uint64, error) {
+	valuePointer, err := f.instance.malloc(ctx, 8)
+	if err != nil {
+		return 0, err
+	}
+	defer f.instance.free(ctx, valuePointer)
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldUint64_t", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	if err != nil {
+		return 0, err
+	}
+
+	if results[0] == 0 {
+		return 0, &TagNotDefinedError{
+			Tag: tag,
+		}
+	}
+
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
+	readValue, success := f.instance.internalInstance.Module.Memory().ReadUint64Le(uint32(valuePointer))
+	if !success {
+		return 0, errors.New("could not read tag value")
+	}
+
+	return readValue, nil
+}
+
 func (f *File) TIFFGetFieldUint32_t(ctx context.Context, tag TIFFTAG) (uint32, error) {
 	valuePointer, err := f.instance.malloc(ctx, 4)
 	if err != nil {
