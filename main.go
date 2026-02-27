@@ -210,6 +210,9 @@ func img2tiff() error {
 		compression string
 		quality     int
 		append      bool
+		software    string
+		dateTime    string
+		artist      string
 	)
 
 	rootCmd := &cobra.Command{
@@ -292,6 +295,9 @@ func img2tiff() error {
 				err = tiffFile.FromGoImage(ctx, img, &libtiff.FromGoImageOptions{
 					Compression: comp,
 					Quality:     quality,
+					Software:    software,
+					DateTime:    dateTime,
+					Artist:      artist,
 				})
 				if err != nil {
 					log.Fatal(fmt.Errorf("could not write image %s to tiff: %w", input, err))
@@ -311,6 +317,9 @@ func img2tiff() error {
 	rootCmd.Flags().StringVarP(&compression, "compression", "", "deflate", "Compression type: none, lzw, deflate, or jpeg")
 	rootCmd.Flags().IntVarP(&quality, "quality", "", 75, "JPEG compression quality (1-100), only used with --compression jpeg")
 	rootCmd.Flags().BoolVarP(&append, "append", "", false, "Append to an existing TIFF file instead of creating a new one")
+	rootCmd.Flags().StringVarP(&software, "software", "", "", "TIFFTAG_SOFTWARE value (default: go-libtiff/libtiff-{version})")
+	rootCmd.Flags().StringVarP(&dateTime, "datetime", "", "", "TIFFTAG_DATETIME value in YYYY:MM:DD HH:MM:SS format (default: current time)")
+	rootCmd.Flags().StringVarP(&artist, "artist", "", "", "TIFFTAG_ARTIST value (omitted if empty)")
 
 	rootCmd.SetOut(os.Stdout)
 	return rootCmd.Execute()

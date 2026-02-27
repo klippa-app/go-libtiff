@@ -4,6 +4,8 @@ import (
 	"context"
 	"image"
 	"image/color"
+	"strings"
+	"time"
 )
 
 // AlphaMode controls how the alpha channel is stored in the TIFF file.
@@ -26,6 +28,14 @@ type FromGoImageOptions struct {
 	// AlphaMode controls premultiplied vs non-premultiplied alpha storage.
 	// Zero value (AlphaAuto) auto-detects based on image type.
 	AlphaMode AlphaMode
+	// Software sets the TIFFTAG_SOFTWARE tag. If empty, defaults to
+	// "go-libtiff/libtiff-{version}" where version is the linked libtiff version.
+	Software string
+	// DateTime sets the TIFFTAG_DATETIME tag in "YYYY:MM:DD HH:MM:SS" format.
+	// If empty, defaults to the current time.
+	DateTime string
+	// Artist sets the TIFFTAG_ARTIST tag. If empty, the tag is not written.
+	Artist string
 }
 
 // FromGoImage writes a Go image to the open TIFF file.
@@ -103,6 +113,49 @@ func (f *File) FromGoImage(ctx context.Context, img image.Image, options *FromGo
 	}
 	if err := f.TIFFSetFieldUint16_t(ctx, TIFFTAG_PLANARCONFIG, uint16(PLANARCONFIG_CONTIG)); err != nil {
 		return err
+	}
+
+	// Set metadata tags.
+	software := ""
+	if options != nil {
+		software = options.Software
+	}
+	if software == "" {
+		software = "go-libtiff"
+		if ver, err := f.instance.TIFFGetVersion(ctx); err == nil {
+			// TIFFGetVersion returns "LIBTIFF, Version X.Y.Z\n...".
+			if i := strings.Index(ver, "Version "); i != -1 {
+				v := ver[i+len("Version "):]
+				if j := strings.IndexAny(v, "\n\r"); j != -1 {
+					v = v[:j]
+				}
+				software = "go-libtiff/libtiff-" + strings.TrimSpace(v)
+			}
+		}
+	}
+	if err := f.TIFFSetFieldString(ctx, TIFFTAG_SOFTWARE, software); err != nil {
+		return err
+	}
+
+	dateTime := ""
+	if options != nil {
+		dateTime = options.DateTime
+	}
+	if dateTime == "" {
+		dateTime = time.Now().Format("2006:01:02 15:04:05")
+	}
+	if err := f.TIFFSetFieldString(ctx, TIFFTAG_DATETIME, dateTime); err != nil {
+		return err
+	}
+
+	artist := ""
+	if options != nil {
+		artist = options.Artist
+	}
+	if artist != "" {
+		if err := f.TIFFSetFieldString(ctx, TIFFTAG_ARTIST, artist); err != nil {
+			return err
+		}
 	}
 
 	if !isJPEG {
