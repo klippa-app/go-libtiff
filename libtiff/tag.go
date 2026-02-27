@@ -53,6 +53,36 @@ func (f *File) TIFFGetFieldUint16_t(ctx context.Context, tag TIFFTAG) (uint16, e
 	return readValue, nil
 }
 
+func (f *File) TIFFGetFieldUint64_t(ctx context.Context, tag TIFFTAG) (uint64, error) {
+	valuePointer, err := f.instance.malloc(ctx, 8)
+	if err != nil {
+		return 0, err
+	}
+	defer f.instance.free(ctx, valuePointer)
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldUint64_t", f.pointer, api.EncodeU32(uint32(tag)), valuePointer)
+	if err != nil {
+		return 0, err
+	}
+
+	if results[0] == 0 {
+		return 0, &TagNotDefinedError{
+			Tag: tag,
+		}
+	}
+
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
+	readValue, success := f.instance.internalInstance.Module.Memory().ReadUint64Le(uint32(valuePointer))
+	if !success {
+		return 0, errors.New("could not read tag value")
+	}
+
+	return readValue, nil
+}
+
 func (f *File) TIFFGetFieldUint32_t(ctx context.Context, tag TIFFTAG) (uint32, error) {
 	valuePointer, err := f.instance.malloc(ctx, 4)
 	if err != nil {
@@ -111,6 +141,47 @@ func (f *File) TIFFGetFieldInt(ctx context.Context, tag TIFFTAG) (int, error) {
 	}
 
 	return int(readValue), nil
+}
+
+func (f *File) TIFFGetFieldTwoUint16(ctx context.Context, tag TIFFTAG) (uint16, uint16, error) {
+	valuePointer1, err := f.instance.malloc(ctx, 2)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.instance.free(ctx, valuePointer1)
+
+	valuePointer2, err := f.instance.malloc(ctx, 2)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer f.instance.free(ctx, valuePointer2)
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetFieldTwoUint16", f.pointer, api.EncodeU32(uint32(tag)), valuePointer1, valuePointer2)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if results[0] == 0 {
+		return 0, 0, &TagNotDefinedError{
+			Tag: tag,
+		}
+	}
+
+	// Prevent concurrent memory usage.
+	f.instance.internalInstance.CallLock.Lock()
+	defer f.instance.internalInstance.CallLock.Unlock()
+
+	readValue1, success := f.instance.internalInstance.Module.Memory().ReadUint16Le(uint32(valuePointer1))
+	if !success {
+		return 0, 0, errors.New("could not read tag value")
+	}
+
+	readValue2, success := f.instance.internalInstance.Module.Memory().ReadUint16Le(uint32(valuePointer2))
+	if !success {
+		return 0, 0, errors.New("could not read tag value")
+	}
+
+	return readValue1, readValue2, nil
 }
 
 func (f *File) TIFFGetFieldFloat(ctx context.Context, tag TIFFTAG) (float32, error) {

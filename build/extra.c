@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <tiffio.h>
 
-extern tmsize_t TIFFReadWriteProcGoCB(thandle_t, void*, tmsize_t);
+extern tmsize_t TIFFReadProcGoCB(thandle_t, void*, tmsize_t);
+extern tmsize_t TIFFWriteProcGoCB(thandle_t, void*, tmsize_t);
 extern toff_t TIFFSeekProcGoCB(thandle_t, toff_t, int);
 extern int TIFFCloseProcGoCB(thandle_t);
 extern toff_t TIFFSizeProcGoCB(thandle_t);
@@ -48,7 +49,7 @@ TIFF* TIFFOpenExtGo(const char *filename, const char *mode, TIFFOpenOptions *opt
 
 EMSCRIPTEN_KEEPALIVE
 TIFF* TIFFClientOpenExtGo(const char *filename, const char *mode, thandle_t clientdata, TIFFOpenOptions *opts) {
-  return TIFFClientOpenExt(filename, mode, clientdata, TIFFReadWriteProcGoCB, TIFFReadWriteProcGoCB, TIFFSeekProcGoCB, TIFFCloseProcGoCB, TIFFSizeProcGoCB, TIFFMapFileProcGoCB, TIFFUnmapFileProcGoCB, opts);
+  return TIFFClientOpenExt(filename, mode, clientdata, TIFFReadProcGoCB, TIFFWriteProcGoCB, TIFFSeekProcGoCB, TIFFCloseProcGoCB, TIFFSizeProcGoCB, TIFFMapFileProcGoCB, TIFFUnmapFileProcGoCB, opts);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -59,4 +60,59 @@ void TIFFOpenOptionsSetErrorHandlerExtRGo(TIFFOpenOptions *opts, void *errorhand
 EMSCRIPTEN_KEEPALIVE
 void TIFFOpenOptionsSetWarningHandlerExtRGo(TIFFOpenOptions *opts, void *warnhandler_user_data) {
   TIFFOpenOptionsSetWarningHandlerExtR(opts, TIFFOpenOptionsSetWarningHandlerExtRGoCB, warnhandler_user_data);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldUint16_t(TIFF *tif, uint32_t tag, uint16_t val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldUint32_t(TIFF *tif, uint32_t tag, uint32_t val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldInt(TIFF *tif, uint32_t tag, int val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldFloat(TIFF *tif, uint32_t tag, float val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldDouble(TIFF *tif, uint32_t tag, double val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldString(TIFF *tif, uint32_t tag, const char* val) {
+  return TIFFSetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldExtraSamples(TIFF *tif, uint16_t count, uint16_t *types) {
+  return TIFFSetField(tif, TIFFTAG_EXTRASAMPLES, count, types);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldTwoUint16(TIFF *tif, uint32_t tag, uint16_t val1, uint16_t val2) {
+  return TIFFSetField(tif, tag, val1, val2);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldTwoUint16(TIFF *tif, uint32_t tag, uint16_t *val1, uint16_t *val2) {
+  return TIFFGetField(tif, tag, val1, val2);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t *val) {
+  return TIFFGetField(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFSetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t val) {
+  return TIFFSetField(tif, tag, val);
 }
