@@ -735,3 +735,45 @@ var (
 	GPSTAG_DIFFERENTIAL         = TIFFTAG(30) /* Indicates whether differential correction is applied to the GPS receiver. */
 	GPSTAG_GPSHPOSITIONINGERROR = TIFFTAG(31) /* Indicates horizontal positioning errors in meters. */
 )
+
+// TIFFDataType represents the data type of a TIFF tag field.
+type TIFFDataType uint32
+
+const (
+	TIFF_NOTYPE    TIFFDataType = 0  /* placeholder */
+	TIFF_BYTE      TIFFDataType = 1  /* 8-bit unsigned integer */
+	TIFF_ASCII     TIFFDataType = 2  /* 8-bit bytes w/ last byte null */
+	TIFF_SHORT     TIFFDataType = 3  /* 16-bit unsigned integer */
+	TIFF_LONG      TIFFDataType = 4  /* 32-bit unsigned integer */
+	TIFF_RATIONAL  TIFFDataType = 5  /* 64-bit unsigned fraction */
+	TIFF_SBYTE     TIFFDataType = 6  /* 8-bit signed integer */
+	TIFF_UNDEFINED TIFFDataType = 7  /* 8-bit untyped data */
+	TIFF_SSHORT    TIFFDataType = 8  /* 16-bit signed integer */
+	TIFF_SLONG     TIFFDataType = 9  /* 32-bit signed integer */
+	TIFF_SRATIONAL TIFFDataType = 10 /* 64-bit signed fraction */
+	TIFF_FLOAT     TIFFDataType = 11 /* 32-bit IEEE floating point */
+	TIFF_DOUBLE    TIFFDataType = 12 /* 64-bit IEEE floating point */
+	TIFF_IFD       TIFFDataType = 13 /* 32-bit unsigned integer (offset) */
+	TIFF_LONG8     TIFFDataType = 16 /* BigTIFF 64-bit unsigned integer */
+	TIFF_SLONG8    TIFFDataType = 17 /* BigTIFF 64-bit signed integer */
+	TIFF_IFD8      TIFFDataType = 18 /* BigTIFF 64-bit unsigned integer (offset) */
+)
+
+// Codec represents a configured TIFF compression codec.
+type Codec struct {
+	Name   string
+	Scheme uint16
+}
+
+// PrintDirectoryFlag controls the verbosity of TIFFPrintDirectory output.
+type PrintDirectoryFlag int64
+
+const (
+	TIFFPRINT_NONE       PrintDirectoryFlag = 0x0  /* no extra info */
+	TIFFPRINT_STRIPS     PrintDirectoryFlag = 0x1  /* strips/tiles info */
+	TIFFPRINT_CURVES     PrintDirectoryFlag = 0x2  /* color/gray response curves */
+	TIFFPRINT_COLORMAP   PrintDirectoryFlag = 0x4  /* colormap */
+	TIFFPRINT_JPEGQTABLES PrintDirectoryFlag = 0x100 /* JPEG Q matrices */
+	TIFFPRINT_JPEGACTABLES PrintDirectoryFlag = 0x200 /* JPEG AC tables */
+	TIFFPRINT_JPEGDCTABLES PrintDirectoryFlag = 0x200 /* JPEG DC tables */
+)

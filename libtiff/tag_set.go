@@ -98,6 +98,20 @@ func (f *File) TIFFSetFieldTwoUint16(ctx context.Context, tag TIFFTAG, val1, val
 	return nil
 }
 
+// TIFFUnsetField removes the given tag from the current directory.
+func (f *File) TIFFUnsetField(ctx context.Context, tag TIFFTAG) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFUnsetField", f.pointer, api.EncodeU32(uint32(tag)))
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("could not unset tag")
+	}
+
+	return nil
+}
+
 func (f *File) TIFFSetFieldString(ctx context.Context, tag TIFFTAG, val string) error {
 	cString, err := f.instance.newCString(ctx, val)
 	if err != nil {

@@ -1,5 +1,7 @@
 #include <emscripten.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include <tiffio.h>
 
 extern tmsize_t TIFFReadProcGoCB(thandle_t, void*, tmsize_t);
@@ -115,4 +117,63 @@ int TIFFGetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t *val) {
 EMSCRIPTEN_KEEPALIVE
 int TIFFSetFieldUint64_t(TIFF *tif, uint32_t tag, uint64_t val) {
   return TIFFSetField(tif, tag, val);
+}
+
+// TIFFGetFieldDefaulted wrappers - like TIFFGetField but returns TIFF spec
+// defaults for tags that are not explicitly set.
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedUint16_t(TIFF *tif, uint32_t tag, uint16_t *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedUint32_t(TIFF *tif, uint32_t tag, uint32_t *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedUint64_t(TIFF *tif, uint32_t tag, uint64_t *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedInt(TIFF *tif, uint32_t tag, int *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedFloat(TIFF *tif, uint32_t tag, float *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedDouble(TIFF *tif, uint32_t tag, double *val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedConstChar(TIFF *tif, uint32_t tag, const char** val) {
+  return TIFFGetFieldDefaulted(tif, tag, val);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int TIFFGetFieldDefaultedTwoUint16(TIFF *tif, uint32_t tag, uint16_t *val1, uint16_t *val2) {
+  return TIFFGetFieldDefaulted(tif, tag, val1, val2);
+}
+
+// TIFFPrintDirectoryToBuffer writes the directory info to a memory buffer
+// instead of a FILE*. Returns the number of bytes written, or -1 on error.
+EMSCRIPTEN_KEEPALIVE
+int TIFFPrintDirectoryToBuffer(TIFF *tif, char *buf, int bufsize, long flags) {
+  char *membuf = NULL;
+  size_t membufsize = 0;
+  FILE *f = open_memstream(&membuf, &membufsize);
+  if (!f) return -1;
+  TIFFPrintDirectory(tif, f, flags);
+  fclose(f);
+  int len = (int)(membufsize < (size_t)(bufsize - 1) ? membufsize : (size_t)(bufsize - 1));
+  memcpy(buf, membuf, len);
+  buf[len] = '\0';
+  free(membuf);
+  return len;
 }
