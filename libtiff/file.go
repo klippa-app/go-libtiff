@@ -308,6 +308,84 @@ func (f *File) TIFFReadGPSDirectory(ctx context.Context, diroff uint64) error {
 	return nil
 }
 
+// TIFFFreeDirectory releases the memory associated with the current directory
+// without closing the file. This resets the directory state.
+func (f *File) TIFFFreeDirectory(ctx context.Context) error {
+	_, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFFreeDirectory", f.pointer)
+	return err
+}
+
+// TIFFGetMode returns the file mode used when the file was opened.
+// The returned value corresponds to the O_RDONLY, O_RDWR, etc. flags.
+func (f *File) TIFFGetMode(ctx context.Context) (int, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetMode", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(api.DecodeI32(res[0])), nil
+}
+
+// TIFFCurrentDirOffset returns the byte offset of the current directory in the file.
+func (f *File) TIFFCurrentDirOffset(ctx context.Context) (uint64, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCurrentDirOffset", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return res[0], nil
+}
+
+// TIFFCurrentStrip returns the current strip being read or written.
+func (f *File) TIFFCurrentStrip(ctx context.Context) (uint32, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCurrentStrip", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return api.DecodeU32(res[0]), nil
+}
+
+// TIFFCurrentTile returns the current tile being read or written.
+func (f *File) TIFFCurrentTile(ctx context.Context) (uint32, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCurrentTile", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return api.DecodeU32(res[0]), nil
+}
+
+// TIFFCurrentRow returns the current row being read or written.
+func (f *File) TIFFCurrentRow(ctx context.Context) (uint32, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCurrentRow", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return api.DecodeU32(res[0]), nil
+}
+
+// TIFFIsMSB2LSB returns true if the file uses MSB-to-LSB bit fill order.
+func (f *File) TIFFIsMSB2LSB(ctx context.Context) (bool, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsMSB2LSB", f.pointer)
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
+// TIFFIsUpSampled returns true if the image data has been up-sampled (e.g. YCbCr subsampling).
+func (f *File) TIFFIsUpSampled(ctx context.Context) (bool, error) {
+	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsUpSampled", f.pointer)
+	if err != nil {
+		return false, err
+	}
+
+	return res[0] != 0, nil
+}
+
 // TIFFIsBigEndian returns true if the file uses big-endian byte order.
 func (f *File) TIFFIsBigEndian(ctx context.Context) (bool, error) {
 	res, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFIsBigEndian", f.pointer)

@@ -96,6 +96,68 @@ func (f *File) TIFFVStripSize(ctx context.Context, nrows uint32) (int64, error) 
 	return int64(api.DecodeI32(results[0])), nil
 }
 
+// TIFFRawStripSize returns the size in bytes of a raw (compressed) strip.
+func (f *File) TIFFRawStripSize(ctx context.Context, strip uint32) (int64, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFRawStripSize", f.pointer, api.EncodeU32(strip))
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(api.DecodeI32(results[0])), nil
+}
+
+// TIFFTileRowSize returns the size in bytes of a row within a tile.
+func (f *File) TIFFTileRowSize(ctx context.Context) (int64, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFTileRowSize", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(api.DecodeI32(results[0])), nil
+}
+
+// TIFFCheckTile validates that the given tile coordinates and sample are within bounds.
+// Returns true if the tile coordinates are valid.
+func (f *File) TIFFCheckTile(ctx context.Context, x, y, z uint32, sample uint16) (bool, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFCheckTile", f.pointer, api.EncodeU32(x), api.EncodeU32(y), api.EncodeU32(z), api.EncodeU32(uint32(sample)))
+	if err != nil {
+		return false, err
+	}
+
+	return results[0] != 0, nil
+}
+
+// TIFFRasterScanlineSize returns the raster scanline size in bytes.
+// This may differ from TIFFScanlineSize for images with YCbCr subsampling.
+func (f *File) TIFFRasterScanlineSize(ctx context.Context) (int64, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFRasterScanlineSize", f.pointer)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(api.DecodeI32(results[0])), nil
+}
+
+// TIFFGetStrileOffset returns the byte offset of the given strip or tile in the file.
+func (f *File) TIFFGetStrileOffset(ctx context.Context, strile uint32) (uint64, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetStrileOffset", f.pointer, api.EncodeU32(strile))
+	if err != nil {
+		return 0, err
+	}
+
+	return results[0], nil
+}
+
+// TIFFGetStrileByteCount returns the byte count (compressed size) of the given strip or tile.
+func (f *File) TIFFGetStrileByteCount(ctx context.Context, strile uint32) (uint64, error) {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFGetStrileByteCount", f.pointer, api.EncodeU32(strile))
+	if err != nil {
+		return 0, err
+	}
+
+	return results[0], nil
+}
+
 // TIFFDefaultTileSize returns the default tile dimensions for the file.
 func (f *File) TIFFDefaultTileSize(ctx context.Context) (tileWidth uint32, tileHeight uint32, err error) {
 	twPointer, err := f.instance.malloc(ctx, 4)

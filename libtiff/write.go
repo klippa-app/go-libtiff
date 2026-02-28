@@ -240,6 +240,70 @@ func (f *File) TIFFWriteRawTile(ctx context.Context, tile uint32, data []byte) e
 	return nil
 }
 
+// TIFFDeferStrileArrayWriting defers writing of strip/tile offset and byte count
+// arrays. This can improve write performance for large files by batching metadata updates.
+func (f *File) TIFFDeferStrileArrayWriting(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFDeferStrileArrayWriting", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("could not defer strile array writing")
+	}
+
+	return nil
+}
+
+// TIFFForceStrileArrayWriting forces writing of previously deferred strip/tile
+// offset and byte count arrays.
+func (f *File) TIFFForceStrileArrayWriting(ctx context.Context) error {
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFForceStrileArrayWriting", f.pointer)
+	if err != nil {
+		return err
+	}
+
+	if results[0] == 0 {
+		return errors.New("could not force strile array writing")
+	}
+
+	return nil
+}
+
+// TIFFPrintDirectory returns a human-readable string representation of all tags
+// in the current directory. The flags parameter controls verbosity.
+func (f *File) TIFFPrintDirectory(ctx context.Context, flags PrintDirectoryFlag) (string, error) {
+	const bufSize = 65536
+
+	bufPointer, err := f.instance.malloc(ctx, bufSize)
+	if err != nil {
+		return "", err
+	}
+	defer f.instance.free(ctx, bufPointer)
+
+	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFPrintDirectoryToBuffer", f.pointer, bufPointer, api.EncodeI32(int32(bufSize)), uint64(flags))
+	if err != nil {
+		return "", err
+	}
+
+	bytesWritten := api.DecodeI32(results[0])
+	if bytesWritten == -1 {
+		return "", errors.New("could not print directory")
+	}
+
+	f.instance.internalInstance.CallLock.Lock()
+	buf, ok := f.instance.internalInstance.Module.Memory().Read(uint32(bufPointer), uint32(bytesWritten))
+	if !ok {
+		f.instance.internalInstance.CallLock.Unlock()
+		return "", errors.New("could not read directory output from WASM memory")
+	}
+	result := make([]byte, len(buf))
+	copy(result, buf)
+	f.instance.internalInstance.CallLock.Unlock()
+
+	return string(result), nil
+}
+
 // TIFFFlush flushes pending writes to the file, including the directory.
 func (f *File) TIFFFlush(ctx context.Context) error {
 	results, err := f.instance.internalInstance.CallExportedFunction(ctx, "TIFFFlush", f.pointer)

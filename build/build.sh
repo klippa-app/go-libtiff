@@ -122,6 +122,67 @@ EXPORTED_FUNCTIONS=(
   _TIFFScanlineSize
   _TIFFVStripSize
 
+  # Tag introspection
+  _TIFFGetTagListCount
+  _TIFFGetTagListEntry
+  _TIFFFieldWithTag
+  _TIFFFieldWithName
+  _TIFFFieldName
+  _TIFFFieldDataType
+  _TIFFFieldTag
+  _TIFFFieldIsAnonymous
+  _TIFFFieldPassCount
+  _TIFFFieldReadCount
+  _TIFFFieldWriteCount
+  _TIFFFieldSetGetSize
+  _TIFFFieldSetGetCountSize
+
+  # Tag getters with defaults (typed wrappers in extra.c)
+  _TIFFGetFieldDefaultedUint16_t
+  _TIFFGetFieldDefaultedUint32_t
+  _TIFFGetFieldDefaultedUint64_t
+  _TIFFGetFieldDefaultedInt
+  _TIFFGetFieldDefaultedFloat
+  _TIFFGetFieldDefaultedDouble
+  _TIFFGetFieldDefaultedConstChar
+  _TIFFGetFieldDefaultedTwoUint16
+
+  # Tag unsetting
+  _TIFFUnsetField
+
+  # Codec management
+  _TIFFGetConfiguredCODECs
+
+  # Strip/tile metadata
+  _TIFFRawStripSize
+  _TIFFTileRowSize
+  _TIFFCheckTile
+  _TIFFRasterScanlineSize
+  _TIFFGetStrileOffset
+  _TIFFGetStrileByteCount
+
+  # File state queries
+  _TIFFGetMode
+  _TIFFCurrentDirOffset
+  _TIFFCurrentStrip
+  _TIFFCurrentTile
+  _TIFFCurrentRow
+  _TIFFIsMSB2LSB
+  _TIFFIsUpSampled
+
+  # Deferred writing
+  _TIFFDeferStrileArrayWriting
+  _TIFFForceStrileArrayWriting
+
+  # Directory management
+  _TIFFFreeDirectory
+
+  # Data type utility
+  _TIFFDataWidth
+
+  # Print directory (wrapper in extra.c)
+  _TIFFPrintDirectoryToBuffer
+
   # File info
   _TIFFFileName
   _TIFFIsBigEndian
